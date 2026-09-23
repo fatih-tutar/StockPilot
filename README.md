@@ -6,10 +6,11 @@ Greenfield Laravel rebuild of a real production Core PHP system. Industry-agnost
 
 > Internal planning notes: see [`PROJECT_CONTEXT.md`](PROJECT_CONTEXT.md).
 
-## Stack (phase 0)
+## Stack
 
 - Laravel 13
-- Inertia.js + Vue 3 (Vite)
+- Inertia.js + Vue 3 (Vite) + Laravel Breeze auth
+- Spatie Laravel Permission (roles)
 - Docker Compose: PHP-FPM, Nginx, MySQL 8, phpMyAdmin
 
 ## Requirements
@@ -27,7 +28,7 @@ docker compose up -d
 
 docker compose exec app composer install
 docker compose exec app php artisan key:generate
-docker compose exec app php artisan migrate
+docker compose exec app php artisan migrate --seed
 
 # Frontend assets (on host with Node, or via Docker):
 npm install
@@ -36,14 +37,22 @@ npm run build
 ```
 
 - App: **http://localhost:8080**
+- Login: **http://localhost:8080/login**
 - phpMyAdmin: **http://localhost:8081** (user `stockpilot` / pass `secret`)
+
+### Demo users (after `db:seed`)
+
+| Email | Password | Role |
+|-------|----------|------|
+| `admin@stockpilot.test` | `password` | admin |
+| `staff@stockpilot.test` | `password` | staff |
 
 MySQL itself (`localhost:3306`) is not a website — use phpMyAdmin or a DB client.
 
 ### Useful commands
 
 ```bash
-docker compose exec app php artisan migrate
+docker compose exec app php artisan migrate --seed
 docker compose exec app php artisan tinker
 npm run build
 npm run dev
@@ -62,8 +71,10 @@ docker compose down
 
 ## Frontend notes
 
-Vue pages live in `resources/js/Pages`. The home route renders `Welcome.vue` via Inertia (`routes/web.php`). Same repo as Laravel — not a separate frontend project.
+Vue pages live in `resources/js/Pages`. Auth screens come from Breeze (Inertia). Roles/permissions are shared to the frontend via Inertia `auth.user`.
+
+**Dev tip:** for day-to-day Vue edits use `npm run dev` (HMR). `npm run build` is for production-style assets served by Docker/nginx without the Vite dev server.
 
 ## Status
 
-Phase 0 skeleton with Inertia + Vue hello. Auth and domain modules come next.
+Auth + roles foundation ready. Next domain modules: products/stock, clients, quotes, shipments.

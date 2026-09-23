@@ -72,8 +72,10 @@ Portfolio-critical core first when features start: **Auth + roles → Products/S
 - [x] Confirm `docker compose up` + http://localhost:8080 locally
 - [x] Push to GitHub: https://github.com/fatih-tutar/StockPilot (public)
 - [x] Inertia + Vue hello (`Welcome.vue`)
-- [ ] Next: Auth + roles
+- [x] Auth (Breeze) + roles (Spatie) + demo seed users
+- [ ] Next domain module: products/stock (or as owner directs)
 - [ ] Later: Railway from GitHub + DB + `*.up.railway.app`
+- [ ] Later: `npm run dev` workflow documented in daily use / optional Vite in Docker
 
 ## Naming
 
