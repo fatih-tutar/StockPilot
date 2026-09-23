@@ -33,6 +33,14 @@ const canViewQuotes = computed(() => {
         permissions.includes('quotes.manage')
     );
 });
+
+const canViewShipments = computed(() => {
+    const permissions = page.props.auth?.user?.permissions || [];
+    return (
+        permissions.includes('shipments.view') ||
+        permissions.includes('shipments.manage')
+    );
+});
 </script>
 
 <template>
@@ -84,6 +92,13 @@ const canViewQuotes = computed(() => {
                                     :active="route().current('quotes.*')"
                                 >
                                     Teklifler
+                                </NavLink>
+                                <NavLink
+                                    v-if="canViewShipments"
+                                    :href="route('shipments.index')"
+                                    :active="route().current('shipments.*')"
+                                >
+                                    Sevkiyatlar
                                 </NavLink>
                             </div>
                         </div>
@@ -208,6 +223,13 @@ const canViewQuotes = computed(() => {
                             :active="route().current('quotes.*')"
                         >
                             Teklifler
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            v-if="canViewShipments"
+                            :href="route('shipments.index')"
+                            :active="route().current('shipments.*')"
+                        >
+                            Sevkiyatlar
                         </ResponsiveNavLink>
                     </div>
 

@@ -77,7 +77,8 @@ Portfolio-critical core first when features start: **Auth + roles → Products/S
 - [x] Clients CRUD
 - [x] Turkish UI labels (no language switcher)
 - [x] Quotes CRUD (header + line items, status, tax totals)
-- [ ] Later: shipments, Railway
+- [x] Shipments CRUD (header + line items, vehicle/driver, optional quote link)
+- [ ] Later: Railway demo deploy
 
 ## Naming
 
