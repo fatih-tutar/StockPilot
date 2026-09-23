@@ -1,13 +1,22 @@
 <script setup>
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
 import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
 import NavLink from '@/Components/NavLink.vue';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink.vue';
-import { Link } from '@inertiajs/vue3';
+import { Link, usePage } from '@inertiajs/vue3';
 
 const showingNavigationDropdown = ref(false);
+const page = usePage();
+
+const canViewStock = computed(() => {
+    const permissions = page.props.auth?.user?.permissions || [];
+    return (
+        permissions.includes('stock.view') ||
+        permissions.includes('stock.manage')
+    );
+});
 </script>
 
 <template>
@@ -38,6 +47,20 @@ const showingNavigationDropdown = ref(false);
                                     :active="route().current('dashboard')"
                                 >
                                     Dashboard
+                                </NavLink>
+                                <NavLink
+                                    v-if="canViewStock"
+                                    :href="route('products.index')"
+                                    :active="route().current('products.*')"
+                                >
+                                    Products
+                                </NavLink>
+                                <NavLink
+                                    v-if="canViewStock"
+                                    :href="route('categories.index')"
+                                    :active="route().current('categories.*')"
+                                >
+                                    Categories
                                 </NavLink>
                             </div>
                         </div>
@@ -145,6 +168,20 @@ const showingNavigationDropdown = ref(false);
                             :active="route().current('dashboard')"
                         >
                             Dashboard
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            v-if="canViewStock"
+                            :href="route('products.index')"
+                            :active="route().current('products.*')"
+                        >
+                            Products
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            v-if="canViewStock"
+                            :href="route('categories.index')"
+                            :active="route().current('categories.*')"
+                        >
+                            Categories
                         </ResponsiveNavLink>
                     </div>
 

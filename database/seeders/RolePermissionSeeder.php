@@ -35,6 +35,7 @@ class RolePermissionSeeder extends Seeder
         $admin->syncPermissions($permissions);
         $staff->syncPermissions([
             'stock.view',
+            'stock.manage',
             'quotes.manage',
             'shipments.manage',
         ]);
