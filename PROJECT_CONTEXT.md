@@ -74,8 +74,10 @@ Portfolio-critical core first when features start: **Auth + roles → Products/S
 - [x] Inertia + Vue hello (`Welcome.vue`)
 - [x] Auth (Breeze) + roles (Spatie) + demo seed users
 - [x] Catalog phase 1: categories, products, stock adjust + movements
-- [ ] Next domain module: clients
-- [ ] Later: quotes, shipments, Railway
+- [x] Clients CRUD
+- [x] Turkish UI labels (no language switcher)
+- [ ] Next domain module: quotes
+- [ ] Later: shipments, Railway
 
 ## Naming
 

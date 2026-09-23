@@ -73,7 +73,7 @@ const submitEdit = (category) => {
 };
 
 const destroyCategory = (category) => {
-    if (!confirm(`Delete category "${category.name}"?`)) {
+    if (!confirm(`"${category.name}" kategorisi silinsin mi?`)) {
         return;
     }
 
@@ -84,12 +84,12 @@ const destroyCategory = (category) => {
 </script>
 
 <template>
-    <Head title="Categories" />
+    <Head title="Kategoriler" />
 
     <AuthenticatedLayout>
         <template #header>
             <h2 class="text-xl font-semibold leading-tight text-gray-800">
-                Categories
+                Kategoriler
             </h2>
         </template>
 
@@ -113,11 +113,11 @@ const destroyCategory = (category) => {
                     class="overflow-hidden bg-white p-6 shadow-sm sm:rounded-lg"
                 >
                     <h3 class="mb-4 text-lg font-medium text-gray-900">
-                        New category
+                        Yeni kategori
                     </h3>
                     <form class="grid gap-4 md:grid-cols-2" @submit.prevent="submitCreate">
                         <div>
-                            <InputLabel for="name" value="Name" />
+                            <InputLabel for="name" value="Ad" />
                             <TextInput
                                 id="name"
                                 v-model="createForm.name"
@@ -127,13 +127,13 @@ const destroyCategory = (category) => {
                             <InputError class="mt-2" :message="createForm.errors.name" />
                         </div>
                         <div>
-                            <InputLabel for="parent_id" value="Parent (optional)" />
+                            <InputLabel for="parent_id" value="Üst kategori (opsiyonel)" />
                             <select
                                 id="parent_id"
                                 v-model="createForm.parent_id"
                                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                             >
-                                <option value="">None</option>
+                                <option value="">Yok</option>
                                 <option
                                     v-for="option in parentOptions"
                                     :key="option.id"
@@ -145,7 +145,7 @@ const destroyCategory = (category) => {
                             <InputError class="mt-2" :message="createForm.errors.parent_id" />
                         </div>
                         <div class="md:col-span-2">
-                            <InputLabel for="description" value="Description" />
+                            <InputLabel for="description" value="Açıklama" />
                             <textarea
                                 id="description"
                                 v-model="createForm.description"
@@ -156,7 +156,7 @@ const destroyCategory = (category) => {
                         </div>
                         <div class="md:col-span-2">
                             <PrimaryButton :disabled="createForm.processing">
-                                Create category
+                                Kategori oluştur
                             </PrimaryButton>
                         </div>
                     </form>
@@ -166,11 +166,11 @@ const destroyCategory = (category) => {
                     <table class="min-w-full divide-y divide-gray-200 text-sm">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-4 py-3 text-left font-medium text-gray-600">Name</th>
-                                <th class="px-4 py-3 text-left font-medium text-gray-600">Parent</th>
-                                <th class="px-4 py-3 text-left font-medium text-gray-600">Products</th>
+                                <th class="px-4 py-3 text-left font-medium text-gray-600">Ad</th>
+                                <th class="px-4 py-3 text-left font-medium text-gray-600">Üst kategori</th>
+                                <th class="px-4 py-3 text-left font-medium text-gray-600">Ürünler</th>
                                 <th v-if="canManage" class="px-4 py-3 text-right font-medium text-gray-600">
-                                    Actions
+                                    İşlemler
                                 </th>
                             </tr>
                         </thead>
@@ -202,7 +202,7 @@ const destroyCategory = (category) => {
                                             v-model="editForm.parent_id"
                                             class="w-full rounded-md border-gray-300 text-sm shadow-sm"
                                         >
-                                            <option value="">None</option>
+                                            <option value="">Yok</option>
                                             <option
                                                 v-for="option in parentOptions"
                                                 :key="option.id"
@@ -229,13 +229,13 @@ const destroyCategory = (category) => {
                                             class="!px-3 !py-1"
                                             @click="submitEdit(category)"
                                         >
-                                            Save
+                                            Kaydet
                                         </PrimaryButton>
                                         <SecondaryButton
                                             class="!px-3 !py-1"
                                             @click="cancelEdit"
                                         >
-                                            Cancel
+                                            İptal
                                         </SecondaryButton>
                                     </template>
                                     <template v-else>
@@ -243,13 +243,13 @@ const destroyCategory = (category) => {
                                             class="!px-3 !py-1"
                                             @click="startEdit(category)"
                                         >
-                                            Edit
+                                            Düzenle
                                         </SecondaryButton>
                                         <DangerButton
                                             class="!px-3 !py-1"
                                             @click="destroyCategory(category)"
                                         >
-                                            Delete
+                                            Sil
                                         </DangerButton>
                                     </template>
                                 </td>
@@ -259,7 +259,7 @@ const destroyCategory = (category) => {
                                     class="px-4 py-8 text-center text-gray-500"
                                     :colspan="canManage ? 4 : 3"
                                 >
-                                    No categories yet.
+                                    Henüz kategori yok.
                                 </td>
                             </tr>
                         </tbody>

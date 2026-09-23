@@ -1,59 +1,45 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import InputLabel from '@/Components/InputLabel.vue';
-import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 
 const props = defineProps({
-    products: { type: Object, required: true },
+    clients: { type: Object, required: true },
     filters: { type: Object, required: true },
-    categories: { type: Array, required: true },
     canManage: { type: Boolean, required: true },
 });
 
 const page = usePage();
 const flashSuccess = computed(() => page.props.flash?.success);
 const flashError = computed(() => page.props.flash?.error);
-
 const search = ref(props.filters.search || '');
-const categoryId = ref(props.filters.category_id || '');
 
-watch(
-    [search, categoryId],
-    () => {
-        router.get(
-            route('products.index'),
-            {
-                search: search.value || undefined,
-                category_id: categoryId.value || undefined,
-            },
-            {
-                preserveState: true,
-                replace: true,
-            },
-        );
-    },
-    { deep: true },
-);
+watch(search, () => {
+    router.get(
+        route('clients.index'),
+        { search: search.value || undefined },
+        { preserveState: true, replace: true },
+    );
+});
 </script>
 
 <template>
-    <Head title="Ürünler ve stok" />
+    <Head title="Müşteriler" />
 
     <AuthenticatedLayout>
         <template #header>
             <div class="flex items-center justify-between gap-4">
                 <h2 class="text-xl font-semibold leading-tight text-gray-800">
-                    Ürünler ve stok
+                    Müşteriler
                 </h2>
                 <Link
                     v-if="canManage"
-                    :href="route('products.create')"
+                    :href="route('clients.create')"
                     class="inline-flex items-center rounded-md border border-transparent bg-gray-800 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white transition hover:bg-gray-700"
                 >
-                    Yeni ürün
+                    Yeni müşteri
                 </Link>
             </div>
         </template>
@@ -73,109 +59,83 @@ watch(
                     {{ flashError }}
                 </div>
 
-                <div class="grid gap-4 bg-white p-4 shadow-sm sm:grid-cols-2 sm:rounded-lg">
-                    <div>
-                        <InputLabel for="search" value="Ara" />
-                        <TextInput
-                            id="search"
-                            v-model="search"
-                            class="mt-1 block w-full"
-                            placeholder="Ad veya SKU"
-                        />
-                    </div>
-                    <div>
-                        <InputLabel for="category_id" value="Kategori" />
-                        <select
-                            id="category_id"
-                            v-model="categoryId"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                        >
-                            <option value="">Tüm kategoriler</option>
-                            <option
-                                v-for="category in categories"
-                                :key="category.id"
-                                :value="category.id"
-                            >
-                                {{ category.name }}
-                            </option>
-                        </select>
-                    </div>
+                <div class="bg-white p-4 shadow-sm sm:rounded-lg">
+                    <InputLabel for="search" value="Ara" />
+                    <TextInput
+                        id="search"
+                        v-model="search"
+                        class="mt-1 block w-full max-w-md"
+                        placeholder="Ad, telefon veya e-posta"
+                    />
                 </div>
 
                 <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                     <table class="min-w-full divide-y divide-gray-200 text-sm">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-4 py-3 text-left font-medium text-gray-600">Ürün</th>
-                                <th class="px-4 py-3 text-left font-medium text-gray-600">Kategori</th>
-                                <th class="px-4 py-3 text-left font-medium text-gray-600">Adet</th>
-                                <th class="px-4 py-3 text-left font-medium text-gray-600">Palet</th>
+                                <th class="px-4 py-3 text-left font-medium text-gray-600">Ad</th>
+                                <th class="px-4 py-3 text-left font-medium text-gray-600">Telefon</th>
+                                <th class="px-4 py-3 text-left font-medium text-gray-600">E-posta</th>
                                 <th class="px-4 py-3 text-left font-medium text-gray-600">Durum</th>
                                 <th class="px-4 py-3 text-right font-medium text-gray-600">İşlemler</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
-                            <tr v-for="product in products.data" :key="product.id">
+                            <tr v-for="client in clients.data" :key="client.id">
                                 <td class="px-4 py-3">
                                     <div class="font-medium text-gray-900">
-                                        {{ product.name }}
+                                        {{ client.name }}
                                     </div>
-                                    <div class="text-xs text-gray-500">
-                                        {{ product.sku || 'SKU yok' }}
+                                    <div
+                                        v-if="client.address"
+                                        class="text-xs text-gray-500"
+                                    >
+                                        {{ client.address }}
                                     </div>
                                 </td>
                                 <td class="px-4 py-3 text-gray-700">
-                                    {{ product.category?.name || '—' }}
+                                    {{ client.phone || '—' }}
                                 </td>
                                 <td class="px-4 py-3 text-gray-700">
-                                    {{ product.quantity_piece }}
-                                </td>
-                                <td class="px-4 py-3 text-gray-700">
-                                    {{ product.quantity_pallet }}
+                                    {{ client.email || '—' }}
                                 </td>
                                 <td class="px-4 py-3">
                                     <span
-                                        v-if="product.is_low_stock"
-                                        class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
+                                        v-if="client.is_active"
+                                        class="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800"
                                     >
-                                        Düşük stok
+                                        Aktif
                                     </span>
                                     <span
-                                        v-else-if="!product.is_active"
+                                        v-else
                                         class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600"
                                     >
                                         Pasif
                                     </span>
-                                    <span
-                                        v-else
-                                        class="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800"
-                                    >
-                                        Uygun
-                                    </span>
                                 </td>
                                 <td class="px-4 py-3 text-right">
                                     <Link
-                                        :href="route('products.edit', product.id)"
+                                        :href="route('clients.edit', client.id)"
                                         class="text-indigo-600 hover:text-indigo-800"
                                     >
                                         Aç
                                     </Link>
                                 </td>
                             </tr>
-                            <tr v-if="products.data.length === 0">
-                                <td colspan="6" class="px-4 py-8 text-center text-gray-500">
-                                    Ürün bulunamadı.
+                            <tr v-if="clients.data.length === 0">
+                                <td colspan="5" class="px-4 py-8 text-center text-gray-500">
+                                    Müşteri bulunamadı.
                                 </td>
                             </tr>
                         </tbody>
                     </table>
 
                     <div
-                        v-if="products.links?.length > 3"
+                        v-if="clients.links?.length > 3"
                         class="flex flex-wrap gap-2 border-t border-gray-100 px-4 py-3"
                     >
                         <Link
-                            v-for="link in products.links"
+                            v-for="link in clients.links"
                             :key="link.label"
                             :href="link.url || '#'"
                             class="rounded border px-3 py-1 text-xs"

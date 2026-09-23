@@ -21,6 +21,8 @@ class RolePermissionSeeder extends Seeder
             'users.manage',
             'stock.view',
             'stock.manage',
+            'clients.view',
+            'clients.manage',
             'quotes.manage',
             'shipments.manage',
         ];
@@ -29,6 +31,8 @@ class RolePermissionSeeder extends Seeder
             Permission::findOrCreate($permission);
         }
 
+        app()[PermissionRegistrar::class]->forgetCachedPermissions();
+
         $admin = Role::findOrCreate('admin');
         $staff = Role::findOrCreate('staff');
 
@@ -36,6 +40,8 @@ class RolePermissionSeeder extends Seeder
         $staff->syncPermissions([
             'stock.view',
             'stock.manage',
+            'clients.view',
+            'clients.manage',
             'quotes.manage',
             'shipments.manage',
         ]);

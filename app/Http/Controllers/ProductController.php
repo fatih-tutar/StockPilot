@@ -81,7 +81,7 @@ class ProductController extends Controller
 
         return redirect()
             ->route('products.edit', $product)
-            ->with('success', 'Product created.');
+            ->with('success', 'Ürün oluşturuldu.');
     }
 
     public function edit(Request $request, Product $product): Response
@@ -131,7 +131,7 @@ class ProductController extends Controller
 
         return redirect()
             ->route('products.edit', $product)
-            ->with('success', 'Product updated.');
+            ->with('success', 'Ürün güncellendi.');
     }
 
     public function destroy(Product $product): RedirectResponse
@@ -141,14 +141,14 @@ class ProductController extends Controller
         if ($product->quantity_piece > 0 || $product->quantity_pallet > 0) {
             return redirect()
                 ->route('products.edit', $product)
-                ->with('error', 'Zero out stock before deleting this product.');
+                ->with('error', 'Ürünü silmeden önce stoğu sıfırlayın.');
         }
 
         $product->delete();
 
         return redirect()
             ->route('products.index')
-            ->with('success', 'Product deleted.');
+            ->with('success', 'Ürün silindi.');
     }
 
     public function adjust(
@@ -175,6 +175,6 @@ class ProductController extends Controller
 
         return redirect()
             ->route('products.edit', $product)
-            ->with('success', 'Stock adjusted.');
+            ->with('success', 'Stok güncellendi.');
     }
 }

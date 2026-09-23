@@ -77,7 +77,7 @@ const submitAdjust = () => {
 };
 
 const destroyProduct = () => {
-    if (!confirm('Delete this product?')) {
+    if (!confirm('Bu ürün silinsin mi?')) {
         return;
     }
 
@@ -86,19 +86,19 @@ const destroyProduct = () => {
 </script>
 
 <template>
-    <Head :title="isEdit ? 'Edit product' : 'New product'" />
+    <Head :title="isEdit ? 'Ürünü düzenle' : 'Yeni ürün'" />
 
     <AuthenticatedLayout>
         <template #header>
             <div class="flex items-center justify-between gap-4">
                 <h2 class="text-xl font-semibold leading-tight text-gray-800">
-                    {{ isEdit ? product.name : 'New product' }}
+                    {{ isEdit ? product.name : 'Yeni ürün' }}
                 </h2>
                 <Link
                     :href="route('products.index')"
                     class="text-sm text-gray-600 hover:text-gray-900"
                 >
-                    Back to products
+                    Ürünlere dön
                 </Link>
             </div>
         </template>
@@ -124,7 +124,7 @@ const destroyProduct = () => {
                 >
                     <div class="grid gap-4 md:grid-cols-2">
                         <div>
-                            <InputLabel for="name" value="Name" />
+                            <InputLabel for="name" value="Ad" />
                             <TextInput
                                 id="name"
                                 v-model="form.name"
@@ -145,7 +145,7 @@ const destroyProduct = () => {
                             <InputError class="mt-2" :message="form.errors.sku" />
                         </div>
                         <div>
-                            <InputLabel for="category_id" value="Category" />
+                            <InputLabel for="category_id" value="Kategori" />
                             <select
                                 id="category_id"
                                 v-model="form.category_id"
@@ -153,7 +153,7 @@ const destroyProduct = () => {
                                 required
                                 :disabled="isEdit && !canManage"
                             >
-                                <option value="" disabled>Select category</option>
+                                <option value="" disabled>Kategori seçin</option>
                                 <option
                                     v-for="category in categories"
                                     :key="category.id"
@@ -165,7 +165,7 @@ const destroyProduct = () => {
                             <InputError class="mt-2" :message="form.errors.category_id" />
                         </div>
                         <div>
-                            <InputLabel for="low_stock_threshold" value="Low stock threshold (piece)" />
+                            <InputLabel for="low_stock_threshold" value="Düşük stok eşiği (adet)" />
                             <TextInput
                                 id="low_stock_threshold"
                                 v-model="form.low_stock_threshold"
@@ -177,7 +177,7 @@ const destroyProduct = () => {
                             <InputError class="mt-2" :message="form.errors.low_stock_threshold" />
                         </div>
                         <div v-if="!isEdit">
-                            <InputLabel for="quantity_piece" value="Opening piece qty" />
+                            <InputLabel for="quantity_piece" value="Açılış adet" />
                             <TextInput
                                 id="quantity_piece"
                                 v-model="form.quantity_piece"
@@ -188,7 +188,7 @@ const destroyProduct = () => {
                             <InputError class="mt-2" :message="form.errors.quantity_piece" />
                         </div>
                         <div v-if="!isEdit">
-                            <InputLabel for="quantity_pallet" value="Opening pallet qty" />
+                            <InputLabel for="quantity_pallet" value="Açılış palet" />
                             <TextInput
                                 id="quantity_pallet"
                                 v-model="form.quantity_pallet"
@@ -199,7 +199,7 @@ const destroyProduct = () => {
                             <InputError class="mt-2" :message="form.errors.quantity_pallet" />
                         </div>
                         <div class="md:col-span-2">
-                            <InputLabel for="description" value="Description" />
+                            <InputLabel for="description" value="Açıklama" />
                             <textarea
                                 id="description"
                                 v-model="form.description"
@@ -215,13 +215,13 @@ const destroyProduct = () => {
                                 v-model:checked="form.is_active"
                                 :disabled="isEdit && !canManage"
                             />
-                            <InputLabel for="is_active" value="Active" />
+                            <InputLabel for="is_active" value="Aktif" />
                         </div>
                     </div>
 
                     <div v-if="!isEdit || canManage" class="flex gap-3">
                         <PrimaryButton :disabled="form.processing">
-                            {{ isEdit ? 'Save product' : 'Create product' }}
+                            {{ isEdit ? 'Ürünü kaydet' : 'Ürün oluştur' }}
                         </PrimaryButton>
                         <DangerButton
                             v-if="isEdit && canManage"
@@ -229,7 +229,7 @@ const destroyProduct = () => {
                             :disabled="deleteForm.processing"
                             @click="destroyProduct"
                         >
-                            Delete
+                            Sil
                         </DangerButton>
                     </div>
                 </form>
@@ -240,14 +240,14 @@ const destroyProduct = () => {
                 >
                     <div class="bg-white p-6 shadow-sm sm:rounded-lg">
                         <h3 class="mb-2 text-lg font-medium text-gray-900">
-                            Current stock
+                            Güncel stok
                         </h3>
                         <p class="text-sm text-gray-600">
-                            Piece:
+                            Adet:
                             <span class="font-semibold text-gray-900">
                                 {{ product.quantity_piece }}
                             </span>
-                            · Pallet:
+                            · Palet:
                             <span class="font-semibold text-gray-900">
                                 {{ product.quantity_pallet }}
                             </span>
@@ -255,7 +255,7 @@ const destroyProduct = () => {
                                 v-if="product.is_low_stock"
                                 class="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
                             >
-                                Low stock
+                                Düşük stok
                             </span>
                         </p>
 
@@ -266,7 +266,7 @@ const destroyProduct = () => {
                         >
                             <div class="grid gap-3 sm:grid-cols-2">
                                 <div>
-                                    <InputLabel value="Piece delta (+/-)" />
+                                    <InputLabel value="Adet farkı (+/-)" />
                                     <TextInput
                                         v-model="adjustForm.quantity_piece_delta"
                                         type="number"
@@ -278,7 +278,7 @@ const destroyProduct = () => {
                                     />
                                 </div>
                                 <div>
-                                    <InputLabel value="Pallet delta (+/-)" />
+                                    <InputLabel value="Palet farkı (+/-)" />
                                     <TextInput
                                         v-model="adjustForm.quantity_pallet_delta"
                                         type="number"
@@ -291,22 +291,22 @@ const destroyProduct = () => {
                                 </div>
                             </div>
                             <div>
-                                <InputLabel value="Note" />
+                                <InputLabel value="Not" />
                                 <TextInput
                                     v-model="adjustForm.note"
                                     class="mt-1 block w-full"
-                                    placeholder="e.g. cycle count correction"
+                                    placeholder="örn. sayım düzeltmesi"
                                 />
                             </div>
                             <PrimaryButton :disabled="adjustForm.processing">
-                                Adjust stock
+                                Stok düzelt
                             </PrimaryButton>
                         </form>
                     </div>
 
                     <div class="bg-white p-6 shadow-sm sm:rounded-lg">
                         <h3 class="mb-4 text-lg font-medium text-gray-900">
-                            Recent movements
+                            Son hareketler
                         </h3>
                         <ul class="space-y-3 text-sm">
                             <li
@@ -316,8 +316,8 @@ const destroyProduct = () => {
                             >
                                 <div class="font-medium text-gray-900">
                                     {{ movement.type }}
-                                    · piece {{ movement.quantity_piece_delta }}
-                                    · pallet {{ movement.quantity_pallet_delta }}
+                                    · adet {{ movement.quantity_piece_delta }}
+                                    · palet {{ movement.quantity_pallet_delta }}
                                 </div>
                                 <div class="text-xs text-gray-500">
                                     {{ movement.created_at }}
@@ -330,7 +330,7 @@ const destroyProduct = () => {
                                 </div>
                             </li>
                             <li v-if="movements.length === 0" class="text-gray-500">
-                                No movements yet.
+                                Henüz hareket yok.
                             </li>
                         </ul>
                     </div>

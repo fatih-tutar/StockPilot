@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\ClientController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
@@ -32,6 +33,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('products', ProductController::class)->except(['show']);
     Route::post('products/{product}/adjust-stock', [ProductController::class, 'adjust'])
         ->name('products.adjust-stock');
+
+    Route::resource('clients', ClientController::class)->except(['show']);
 });
 
 require __DIR__.'/auth.php';

@@ -9,12 +9,12 @@ const roles = computed(() => user.value?.roles?.join(', ') || '—');
 </script>
 
 <template>
-    <Head title="Dashboard" />
+    <Head title="Panel" />
 
     <AuthenticatedLayout>
         <template #header>
             <h2 class="text-xl font-semibold leading-tight text-gray-800">
-                Dashboard
+                Panel
             </h2>
         </template>
 
@@ -22,11 +22,11 @@ const roles = computed(() => user.value?.roles?.join(', ') || '—');
             <div class="mx-auto max-w-7xl sm:px-6 lg:px-8">
                 <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                     <div class="space-y-2 p-6 text-gray-900">
-                        <p>You're logged in to StockPilot.</p>
+                        <p>StockPilot oturumunuz açık.</p>
                         <p class="text-sm text-gray-600">
-                            Signed in as
+                            Giriş yapan
                             <span class="font-medium text-gray-900">{{ user?.email }}</span>
-                            · role(s):
+                            · rol(ler):
                             <span class="font-medium text-gray-900">{{ roles }}</span>
                         </p>
                     </div>

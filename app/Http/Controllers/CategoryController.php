@@ -49,7 +49,7 @@ class CategoryController extends Controller
 
         return redirect()
             ->route('categories.index')
-            ->with('success', 'Category created.');
+            ->with('success', 'Kategori oluşturuldu.');
     }
 
     public function update(UpdateCategoryRequest $request, Category $category): RedirectResponse
@@ -61,7 +61,7 @@ class CategoryController extends Controller
 
         return redirect()
             ->route('categories.index')
-            ->with('success', 'Category updated.');
+            ->with('success', 'Kategori güncellendi.');
     }
 
     public function destroy(Category $category): RedirectResponse
@@ -71,13 +71,13 @@ class CategoryController extends Controller
         if ($category->products()->exists()) {
             return redirect()
                 ->route('categories.index')
-                ->with('error', 'Cannot delete a category that still has products.');
+                ->with('error', 'Ürünü olan kategori silinemez.');
         }
 
         $category->delete();
 
         return redirect()
             ->route('categories.index')
-            ->with('success', 'Category deleted.');
+            ->with('success', 'Kategori silindi.');
     }
 }
