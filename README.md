@@ -81,4 +81,5 @@ Catalog phase 1 ready: categories, products, piece/pallet stock, stock movements
 Clients module ready.
 Quotes module ready (header + line items, tax totals, statuses).
 Shipments module ready (vehicle/driver, optional quote link, statuses).
+Ops summary dashboard ready.
 Next: Railway demo deploy.
