@@ -25,6 +25,14 @@ const canViewClients = computed(() => {
         permissions.includes('clients.manage')
     );
 });
+
+const canViewQuotes = computed(() => {
+    const permissions = page.props.auth?.user?.permissions || [];
+    return (
+        permissions.includes('quotes.view') ||
+        permissions.includes('quotes.manage')
+    );
+});
 </script>
 
 <template>
@@ -69,6 +77,13 @@ const canViewClients = computed(() => {
                                     :active="route().current('clients.*')"
                                 >
                                     Müşteriler
+                                </NavLink>
+                                <NavLink
+                                    v-if="canViewQuotes"
+                                    :href="route('quotes.index')"
+                                    :active="route().current('quotes.*')"
+                                >
+                                    Teklifler
                                 </NavLink>
                             </div>
                         </div>
@@ -186,6 +201,13 @@ const canViewClients = computed(() => {
                             :active="route().current('clients.*')"
                         >
                             Müşteriler
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            v-if="canViewQuotes"
+                            :href="route('quotes.index')"
+                            :active="route().current('quotes.*')"
+                        >
+                            Teklifler
                         </ResponsiveNavLink>
                     </div>
 

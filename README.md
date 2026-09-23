@@ -79,4 +79,5 @@ Vue pages live in `resources/js/Pages`. Auth screens come from Breeze (Inertia).
 
 Catalog phase 1 ready: categories, products, piece/pallet stock, stock movements.
 Clients module ready.
-Next: quotes → shipments.
+Quotes module ready (header + line items, tax totals, statuses).
+Next: shipments.

@@ -23,6 +23,7 @@ class RolePermissionSeeder extends Seeder
             'stock.manage',
             'clients.view',
             'clients.manage',
+            'quotes.view',
             'quotes.manage',
             'shipments.manage',
         ];
@@ -42,6 +43,7 @@ class RolePermissionSeeder extends Seeder
             'stock.manage',
             'clients.view',
             'clients.manage',
+            'quotes.view',
             'quotes.manage',
             'shipments.manage',
         ]);

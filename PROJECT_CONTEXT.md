@@ -76,7 +76,7 @@ Portfolio-critical core first when features start: **Auth + roles → Products/S
 - [x] Catalog phase 1: categories, products, stock adjust + movements
 - [x] Clients CRUD
 - [x] Turkish UI labels (no language switcher)
-- [ ] Next domain module: quotes
+- [x] Quotes CRUD (header + line items, status, tax totals)
 - [ ] Later: shipments, Railway
 
 ## Naming
