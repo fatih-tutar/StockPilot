@@ -26,7 +26,7 @@ Reference (legacy, do not copy code): `/Users/fatih/PhpstormProjects/Aluminyum-D
 |-------|--------|--------|
 | Backend | Laravel 13 | Fresh app, not a page-by-page port |
 | Local/runtime | Docker Compose | nginx + php-fpm + mysql |
-| Frontend (near-term) | Inertia.js + Vue 3 | Popular, Laravel-friendly; **not yet installed** |
+| Frontend (near-term) | Inertia.js + Vue 3 | Wired; pages in `resources/js/Pages` |
 | Frontend (later) | Separate SPA + Laravel API | Matches owner’s workplace style; **phase 2+** |
 | DB | MySQL 8 (local Docker) | Railway supports MySQL or Postgres later |
 | CI | GitHub Actions (test + lint) | CI ≠ hosting; **not yet** |
@@ -70,8 +70,9 @@ Portfolio-critical core first when features start: **Auth + roles → Products/S
 - [x] Docker Compose (nginx, php-fpm, mysql)
 - [x] README: how to run
 - [x] Confirm `docker compose up` + http://localhost:8080 locally
-- [ ] Optional next: Inertia + Vue hello
-- [ ] Push to GitHub (when owner asks)
+- [x] Push to GitHub: https://github.com/fatih-tutar/StockPilot (public)
+- [x] Inertia + Vue hello (`Welcome.vue`)
+- [ ] Next: Auth + roles
 - [ ] Later: Railway from GitHub + DB + `*.up.railway.app`
 
 ## Naming
