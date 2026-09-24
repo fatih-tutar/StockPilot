@@ -116,6 +116,7 @@ DB_URL=${{Postgres.DATABASE_URL}}
 SESSION_DRIVER=database
 QUEUE_CONNECTION=database
 CACHE_STORE=database
+NIXPACKS_PHP_ROOT_DIR=/app/public
 ```
 
 (`Postgres` must match the database service name exactly.)

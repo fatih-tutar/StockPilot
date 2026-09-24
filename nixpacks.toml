@@ -1,8 +1,9 @@
-# Keep Railway's Laravel/PHP detection; only ensure frontend assets build.
-# https://nixpacks.com/docs/configuration/file
+# Keep Railway's Laravel/PHP detection; ensure public/ is the web root and assets build.
+# https://nixpacks.com/docs/providers/php
 
 [variables]
 NIXPACKS_NODE_VERSION = "22"
+NIXPACKS_PHP_ROOT_DIR = "/app/public"
 
 [phases.install]
 cmds = ["npm ci"]
