@@ -95,42 +95,32 @@ Next: finish Railway demo with Postgres.
 
 ## Deploy on Railway (demo)
 
-Repo is prepared for Railway’s Laravel path (Nixpacks + `railway/` scripts).
+Repo uses `Dockerfile.railway` + `railway/start.sh` (migrate/seed then `php artisan serve` on `$PORT`).
 
-1. Sign up at [railway.com](https://railway.com) (Free trial → later Free plan). Link GitHub.
-2. **New Project** → **Deploy from GitHub repo** → `fatih-tutar/StockPilot`.
-3. Add a **PostgreSQL** database service on the same project canvas.
-4. On the **App** service → **Variables**, set at least:
+1. Sign up at [railway.com](https://railway.com), link GitHub, deploy `fatih-tutar/StockPilot`.
+2. Add **PostgreSQL** on the same project.
+3. **StockPilot → Settings → Deploy**
+   - **Custom Start Command**: leave **empty** (Dockerfile `CMD` handles start)
+   - Remove any pre-deploy that only runs migrate if you prefer start.sh (start.sh already migrates)
+4. **Settings → Networking → Generate Domain**; set target port to **8080** if asked.
+5. Variables (Raw Editor example):
 
 ```env
 APP_NAME=StockPilot
 APP_ENV=production
+APP_KEY=base64:...
 APP_DEBUG=false
-APP_KEY=base64:...   # from: php artisan key:generate --show
 APP_URL=https://YOUR-APP.up.railway.app
 APP_LOCALE=tr
 LOG_CHANNEL=stderr
-LOG_STDERR_FORMATTER=\Monolog\Formatter\JsonFormatter
 DB_CONNECTION=pgsql
 DB_URL=${{Postgres.DATABASE_URL}}
 SESSION_DRIVER=database
 QUEUE_CONNECTION=database
 CACHE_STORE=database
-NIXPACKS_PHP_ROOT_DIR=/app/public
+PORT=8080
 ```
 
-(`Postgres` must match the database service name exactly.)
+6. Redeploy. Login: `admin@stockpilot.test` / `password`.
 
-5. **Settings → Build**: custom build should already include `npm` via `nixpacks.toml`; if assets are missing, set custom build to `npm ci && npm run build`.
-6. **Settings → Deploy → Pre-deploy command**:
-
-```bash
-chmod +x ./railway/init-app.sh && ./railway/init-app.sh
-```
-
-7. **Settings → Networking → Generate Domain**, then set `APP_URL` to that HTTPS URL and redeploy.
-8. Open the URL → login with seeded demo users (`admin@stockpilot.test` / `password`).
-
-Optional later: separate Worker / Cron services using `railway/run-worker.sh` and `railway/run-cron.sh` (more usage on Free).
-
-**PHP version:** `composer.json` requires `^8.4` so Railway/Nixpacks selects PHP 8.4 (Laravel 13 needs ≥ 8.4.1).
+**PHP version:** `composer.json` requires `^8.4`.
