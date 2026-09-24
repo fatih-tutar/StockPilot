@@ -116,10 +116,13 @@ LOG_CHANNEL=stderr
 DB_CONNECTION=pgsql
 DB_URL=${{Postgres.DATABASE_URL}}
 SESSION_DRIVER=database
+SESSION_SECURE_COOKIE=true
 QUEUE_CONNECTION=database
 CACHE_STORE=database
 PORT=8080
 ```
+
+`APP_URL` must be **https://** (not http). Wrong scheme → blank white page (mixed content).
 
 6. Redeploy. Login: `admin@stockpilot.test` / `password`.
 
