@@ -52,9 +52,7 @@ const canViewShipments = computed(() => {
                         <div class="flex">
                             <div class="flex shrink-0 items-center">
                                 <Link :href="route('dashboard')">
-                                    <ApplicationLogo
-                                        class="block h-9 w-9 text-blue-700"
-                                    />
+                                    <ApplicationLogo class="block h-9 w-9" />
                                 </Link>
                             </div>
 

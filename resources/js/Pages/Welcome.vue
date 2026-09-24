@@ -76,7 +76,7 @@ defineProps({
                     class="group flex items-center gap-2.5 text-[var(--sp-ink)]"
                 >
                     <ApplicationLogo
-                        class="h-9 w-9 text-[var(--sp-blue)] transition group-hover:scale-105"
+                        class="h-9 w-9 transition group-hover:scale-105"
                     />
                     <span class="text-lg font-semibold tracking-tight"
                         >StockPilot</span
