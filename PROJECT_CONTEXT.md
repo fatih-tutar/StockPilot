@@ -28,9 +28,9 @@ Reference (legacy, do not copy code): `/Users/fatih/PhpstormProjects/Aluminyum-D
 | Local/runtime | Docker Compose | nginx + php-fpm + mysql |
 | Frontend (near-term) | Inertia.js + Vue 3 | Wired; pages in `resources/js/Pages` |
 | Frontend (later) | Separate SPA + Laravel API | Matches owner’s workplace style; **phase 2+** |
-| DB | MySQL 8 (local Docker) | Railway supports MySQL or Postgres later |
+| DB | PostgreSQL 16 (local Docker) | Switched from MySQL for personal preference / PaaS defaults |
 | CI | GitHub Actions (test + lint) | CI ≠ hosting; **not yet** |
-| Hosting (demo experiment) | Railway Free/trial | App + MySQL; `$1/mo` credit is tight for always-on |
+| Hosting (demo experiment) | Railway Free/trial | App + PostgreSQL |
 | Hosting (5–10 users free goal) | Oracle Cloud Always Free (OCI) later | Not AWS — AWS is Amazon; OCI is Oracle’s cloud |
 | Hosting (paid low-traffic) | Cheap VPS if needed | Fallback if free PaaS limits hurt |
 

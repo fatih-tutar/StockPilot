@@ -11,7 +11,7 @@ services:
     environment:
       APP_ENV: local
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
     networks:
       - stockpilot
@@ -30,41 +30,39 @@ services:
     networks:
       - stockpilot
 
-  mysql:
-    image: mysql:8.4
-    container_name: stockpilot-mysql
+  postgres:
+    image: postgres:16-alpine
+    container_name: stockpilot-postgres
     restart: unless-stopped
     ports:
-      - "${FORWARD_DB_PORT:-3306}:3306"
+      - "${FORWARD_DB_PORT:-5432}:5432"
     environment:
-      MYSQL_DATABASE: "${DB_DATABASE:-stockpilot}"
-      MYSQL_USER: "${DB_USERNAME:-stockpilot}"
-      MYSQL_PASSWORD: "${DB_PASSWORD:-secret}"
-      MYSQL_ROOT_PASSWORD: "${DB_ROOT_PASSWORD:-root}"
+      POSTGRES_DB: "${DB_DATABASE:-stockpilot}"
+      POSTGRES_USER: "${DB_USERNAME:-stockpilot}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD:-secret}"
     volumes:
-      - stockpilot-mysql:/var/lib/mysql
+      - stockpilot-postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${DB_ROOT_PASSWORD:-root}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-stockpilot} -d ${DB_DATABASE:-stockpilot}"]
       interval: 5s
       timeout: 5s
       retries: 20
     networks:
       - stockpilot
 
-  phpmyadmin:
-    image: phpmyadmin:5.2
-    container_name: stockpilot-phpmyadmin
+  pgadmin:
+    image: dpage/pgadmin4:8
+    container_name: stockpilot-pgadmin
     restart: unless-stopped
     ports:
-      - "${FORWARD_PHPMYADMIN_PORT:-8081}:80"
+      - "${FORWARD_PGADMIN_PORT:-8081}:80"
     environment:
-      PMA_HOST: mysql
-      PMA_PORT: 3306
-      PMA_USER: "${DB_USERNAME:-stockpilot}"
-      PMA_PASSWORD: "${DB_PASSWORD:-secret}"
-      UPLOAD_LIMIT: 64M
+      PGADMIN_DEFAULT_EMAIL: "${PGADMIN_DEFAULT_EMAIL:-admin@example.com}"
+      PGADMIN_DEFAULT_PASSWORD: "${PGADMIN_DEFAULT_PASSWORD:-secret}"
+    volumes:
+      - stockpilot-pgadmin:/var/lib/pgadmin
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
     networks:
       - stockpilot
@@ -74,4 +72,5 @@ networks:
     driver: bridge
 
 volumes:
-  stockpilot-mysql:
+  stockpilot-postgres:
+  stockpilot-pgadmin:

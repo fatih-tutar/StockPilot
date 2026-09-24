@@ -11,7 +11,7 @@ Greenfield Laravel rebuild of a real production Core PHP system. Industry-agnost
 - Laravel 13
 - Inertia.js + Vue 3 (Vite) + Laravel Breeze auth
 - Spatie Laravel Permission (roles)
-- Docker Compose: PHP-FPM, Nginx, MySQL 8, phpMyAdmin
+- Docker Compose: PHP-FPM, Nginx, PostgreSQL 16, pgAdmin
 
 ## Requirements
 
@@ -38,7 +38,15 @@ npm run build
 
 - App: **http://localhost:8080**
 - Login: **http://localhost:8080/login**
-- phpMyAdmin: **http://localhost:8081** (user `stockpilot` / pass `secret`)
+- pgAdmin (DB UI): **http://localhost:8081**
+  - Login email: `admin@example.com`
+  - Login password: `secret`
+  - After login, register/add server:
+    - Host/Name: `postgres`
+    - Port: `5432`
+    - Username: `stockpilot`
+    - Password: `secret`
+    - Maintenance database: `stockpilot`
 
 ### Demo users (after `db:seed`)
 
@@ -47,7 +55,7 @@ npm run build
 | `admin@stockpilot.test` | `password` | admin |
 | `staff@stockpilot.test` | `password` | staff |
 
-MySQL itself (`localhost:3306`) is not a website — use phpMyAdmin or a DB client.
+Postgres itself (`localhost:5432`) is not a website — use pgAdmin or a desktop client (TablePlus, DBeaver).
 
 ### Useful commands
 
@@ -66,8 +74,8 @@ docker compose down
 |---------|------|------|
 | `nginx` | Web server | `8080` → 80 |
 | `app` | PHP 8.4 FPM | — |
-| `mysql` | MySQL 8.4 | `3306` (host, not HTTP) |
-| `phpmyadmin` | DB UI in browser | `8081` → 80 |
+| `postgres` | PostgreSQL 16 | `5432` (host, not HTTP) |
+| `pgadmin` | DB UI in browser | `8081` → 80 |
 
 ## Frontend notes
 
@@ -82,15 +90,16 @@ Clients module ready.
 Quotes module ready (header + line items, tax totals, statuses).
 Shipments module ready (vehicle/driver, optional quote link, statuses).
 Ops summary dashboard ready.
-Next: Railway demo deploy (then evaluate Oracle Always Free for longer free always-on).
+Database: PostgreSQL (local + Railway target).
+Next: finish Railway demo with Postgres.
 
 ## Deploy on Railway (demo)
 
-Repo is prepared for Railway’s Laravel path (Nixpacks + `railway/` scripts). You still need a Railway account.
+Repo is prepared for Railway’s Laravel path (Nixpacks + `railway/` scripts).
 
 1. Sign up at [railway.com](https://railway.com) (Free trial → later Free plan). Link GitHub.
 2. **New Project** → **Deploy from GitHub repo** → `fatih-tutar/StockPilot`.
-3. Add a **MySQL** database service on the same project canvas.
+3. Add a **PostgreSQL** database service on the same project canvas.
 4. On the **App** service → **Variables**, set at least:
 
 ```env
@@ -102,14 +111,14 @@ APP_URL=https://YOUR-APP.up.railway.app
 APP_LOCALE=tr
 LOG_CHANNEL=stderr
 LOG_STDERR_FORMATTER=\Monolog\Formatter\JsonFormatter
-DB_CONNECTION=mysql
-DB_URL=${{MySQL.MYSQL_URL}}
+DB_CONNECTION=pgsql
+DB_URL=${{Postgres.DATABASE_URL}}
 SESSION_DRIVER=database
 QUEUE_CONNECTION=database
 CACHE_STORE=database
 ```
 
-(`MySQL` must match the database service name exactly.)
+(`Postgres` must match the database service name exactly.)
 
 5. **Settings → Build**: custom build should already include `npm` via `nixpacks.toml`; if assets are missing, set custom build to `npm ci && npm run build`.
 6. **Settings → Deploy → Pre-deploy command**:
