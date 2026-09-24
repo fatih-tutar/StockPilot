@@ -30,8 +30,9 @@ Reference (legacy, do not copy code): `/Users/fatih/PhpstormProjects/Aluminyum-D
 | Frontend (later) | Separate SPA + Laravel API | Matches owner’s workplace style; **phase 2+** |
 | DB | MySQL 8 (local Docker) | Railway supports MySQL or Postgres later |
 | CI | GitHub Actions (test + lint) | CI ≠ hosting; **not yet** |
-| Hosting (demo) | Railway (preferred) | Domain like `*.up.railway.app` — **after GitHub** |
-| Hosting (real low-traffic prod) | Prefer cheap/always-free VPS if free PaaS sleep/limits hurt ops | 5–10 users |
+| Hosting (demo experiment) | Railway Free/trial | App + MySQL; `$1/mo` credit is tight for always-on |
+| Hosting (5–10 users free goal) | Oracle Cloud Always Free (OCI) later | Not AWS — AWS is Amazon; OCI is Oracle’s cloud |
+| Hosting (paid low-traffic) | Cheap VPS if needed | Fallback if free PaaS limits hurt |
 
 ## How we build
 
@@ -79,7 +80,7 @@ Portfolio-critical core first when features start: **Auth + roles → Products/S
 - [x] Quotes CRUD (header + line items, status, tax totals)
 - [x] Shipments CRUD (header + line items, vehicle/driver, optional quote link)
 - [x] Ops summary dashboard (low stock, open quotes, active shipments)
-- [ ] Later: Railway demo deploy
+- [ ] Railway demo deploy (experience Free/trial; Oracle Always Free is the longer-term free always-on option)
 
 ## Naming
 

@@ -1,0 +1,5 @@
+#!/bin/bash
+# Optional queue worker service start command.
+set -e
+
+php artisan queue:work --sleep=3 --tries=3 --max-time=3600

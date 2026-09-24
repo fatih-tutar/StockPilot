@@ -82,4 +82,45 @@ Clients module ready.
 Quotes module ready (header + line items, tax totals, statuses).
 Shipments module ready (vehicle/driver, optional quote link, statuses).
 Ops summary dashboard ready.
-Next: Railway demo deploy.
+Next: Railway demo deploy (then evaluate Oracle Always Free for longer free always-on).
+
+## Deploy on Railway (demo)
+
+Repo is prepared for Railway’s Laravel path (Nixpacks + `railway/` scripts). You still need a Railway account.
+
+1. Sign up at [railway.com](https://railway.com) (Free trial → later Free plan). Link GitHub.
+2. **New Project** → **Deploy from GitHub repo** → `fatih-tutar/StockPilot`.
+3. Add a **MySQL** database service on the same project canvas.
+4. On the **App** service → **Variables**, set at least:
+
+```env
+APP_NAME=StockPilot
+APP_ENV=production
+APP_DEBUG=false
+APP_KEY=base64:...   # from: php artisan key:generate --show
+APP_URL=https://YOUR-APP.up.railway.app
+APP_LOCALE=tr
+LOG_CHANNEL=stderr
+LOG_STDERR_FORMATTER=\Monolog\Formatter\JsonFormatter
+DB_CONNECTION=mysql
+DB_URL=${{MySQL.MYSQL_URL}}
+SESSION_DRIVER=database
+QUEUE_CONNECTION=database
+CACHE_STORE=database
+```
+
+(`MySQL` must match the database service name exactly.)
+
+5. **Settings → Build**: custom build should already include `npm` via `nixpacks.toml`; if assets are missing, set custom build to `npm ci && npm run build`.
+6. **Settings → Deploy → Pre-deploy command**:
+
+```bash
+chmod +x ./railway/init-app.sh && ./railway/init-app.sh
+```
+
+7. **Settings → Networking → Generate Domain**, then set `APP_URL` to that HTTPS URL and redeploy.
+8. Open the URL → login with seeded demo users (`admin@stockpilot.test` / `password`).
+
+Optional later: separate Worker / Cron services using `railway/run-worker.sh` and `railway/run-cron.sh` (more usage on Free).
+
+**PHP version:** `composer.json` requires `^8.4` so Railway/Nixpacks selects PHP 8.4 (Laravel 13 needs ≥ 8.4.1).

@@ -1,0 +1,11 @@
+# Keep Railway's Laravel/PHP detection; only ensure frontend assets build.
+# https://nixpacks.com/docs/configuration/file
+
+[variables]
+NIXPACKS_NODE_VERSION = "22"
+
+[phases.install]
+cmds = ["npm ci"]
+
+[phases.build]
+cmds = ["npm run build"]
