@@ -6,6 +6,7 @@ use Database\Factories\CategoryFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -17,15 +18,25 @@ class Category extends Model
     protected $fillable = [
         'parent_id',
         'name',
+        'image',
         'description',
+        'profit_margin',
+        'company_id',
         'sort_order',
     ];
 
     protected function casts(): array
     {
         return [
+            'profit_margin' => 'decimal:2',
+            'company_id' => 'integer',
             'sort_order' => 'integer',
         ];
+    }
+
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(Company::class);
     }
 
     public function parent(): BelongsTo
@@ -41,5 +52,22 @@ class Category extends Model
     public function products(): HasMany
     {
         return $this->hasMany(Product::class);
+    }
+
+    public function columnDefinitions(): BelongsToMany
+    {
+        return $this->belongsToMany(CategoryColumnDefinition::class, 'category_columns')
+            ->withTimestamps()
+            ->orderBy('category_column_definitions.sort_order');
+    }
+
+    /**
+     * Column layout lives on the root category. Children inherit it.
+     */
+    public function activeColumnDefinitions(): BelongsToMany
+    {
+        $owner = $this->parent_id === null ? $this : ($this->parent ?? $this);
+
+        return $owner->columnDefinitions();
     }
 }

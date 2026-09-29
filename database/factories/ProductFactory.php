@@ -22,7 +22,10 @@ class ProductFactory extends Factory
             'description' => fake()->optional()->sentence(),
             'quantity_piece' => fake()->numberBetween(0, 200),
             'quantity_pallet' => fake()->numberBetween(0, 20),
+            'warehouse_quantity' => fake()->numberBetween(0, 200),
             'low_stock_threshold' => 10,
+            'default_order_quantity' => fake()->numberBetween(0, 100),
+            'sort_order' => 0,
             'is_active' => true,
         ];
     }
