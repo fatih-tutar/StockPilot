@@ -8,6 +8,7 @@ use App\Models\Product;
 use Carbon\Exceptions\InvalidFormatException;
 use Database\Seeders\CategoryColumnDefinitionSeeder;
 use Illuminate\Console\Command;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -182,6 +183,8 @@ class ImportLegacyCatalog extends Command
                     "SELECT setval(pg_get_serial_sequence('{$table}', 'id'), COALESCE((SELECT MAX(id) FROM {$table}), 1))",
                 );
             }
+
+            $this->attachFactoryForeignKey();
         });
 
         $this->info('Imported '.count($companies).' companies, '.count($categories).' categories, '.(count($products) - $skippedProducts).' products.');
@@ -209,6 +212,7 @@ class ImportLegacyCatalog extends Command
             DB::statement(
                 "SELECT setval(pg_get_serial_sequence('factories', 'id'), COALESCE((SELECT MAX(id) FROM factories), 1))",
             );
+            $this->attachFactoryForeignKey();
         });
 
         $this->info('Imported '.count($rows).' factories.');
@@ -244,6 +248,28 @@ class ImportLegacyCatalog extends Command
                 ],
             );
         }
+    }
+
+    private function attachFactoryForeignKey(): void
+    {
+        if (! Schema::hasTable('factories') || Schema::hasForeignKey('products', ['factory_id'])) {
+            return;
+        }
+
+        $missing = DB::table('products')
+            ->whereNotNull('factory_id')
+            ->whereNotIn('factory_id', DB::table('factories')->select('id'))
+            ->exists();
+
+        if ($missing) {
+            $this->warn('Skipped the products.factory_id foreign key because some products point at a missing factory.');
+
+            return;
+        }
+
+        Schema::table('products', function (Blueprint $table): void {
+            $table->foreign('factory_id')->references('id')->on('factories')->nullOnDelete();
+        });
     }
 
     /**

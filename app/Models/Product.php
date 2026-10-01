@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\AssignsCurrentCompany;
 use Database\Factories\ProductFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -12,7 +13,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Product extends Model
 {
     /** @use HasFactory<ProductFactory> */
-    use HasFactory, SoftDeletes;
+    use AssignsCurrentCompany, HasFactory, SoftDeletes;
 
     protected $fillable = [
         'category_id',
@@ -69,9 +70,9 @@ class Product extends Model
         return $this->belongsTo(Category::class);
     }
 
-    public function factory(): BelongsTo
+    public function sourceFactory(): BelongsTo
     {
-        return $this->belongsTo(Factory::class);
+        return $this->belongsTo(Factory::class, 'factory_id');
     }
 
     public function stockMovements(): HasMany

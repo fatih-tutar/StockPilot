@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\AssignsCurrentCompany;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class StockMovement extends Model
 {
+    use AssignsCurrentCompany;
+
     public const TYPE_ADJUSTMENT = 'adjustment';
 
     public const TYPE_IN = 'in';
@@ -14,6 +17,7 @@ class StockMovement extends Model
     public const TYPE_OUT = 'out';
 
     protected $fillable = [
+        'company_id',
         'product_id',
         'user_id',
         'type',
@@ -28,6 +32,11 @@ class StockMovement extends Model
             'quantity_piece_delta' => 'integer',
             'quantity_pallet_delta' => 'integer',
         ];
+    }
+
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(Company::class);
     }
 
     public function product(): BelongsTo

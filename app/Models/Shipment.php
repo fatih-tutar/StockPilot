@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ShipmentStatus;
+use App\Models\Concerns\AssignsCurrentCompany;
 use Database\Factories\ShipmentFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -14,9 +15,10 @@ use Illuminate\Support\Facades\DB;
 class Shipment extends Model
 {
     /** @use HasFactory<ShipmentFactory> */
-    use HasFactory, SoftDeletes;
+    use AssignsCurrentCompany, HasFactory, SoftDeletes;
 
     protected $fillable = [
+        'company_id',
         'number',
         'client_id',
         'quote_id',
@@ -47,6 +49,11 @@ class Shipment extends Model
     public function quote(): BelongsTo
     {
         return $this->belongsTo(Quote::class);
+    }
+
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(Company::class);
     }
 
     public function user(): BelongsTo

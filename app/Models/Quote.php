@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\QuoteStatus;
+use App\Models\Concerns\AssignsCurrentCompany;
 use Database\Factories\QuoteFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -14,9 +15,10 @@ use Illuminate\Support\Facades\DB;
 class Quote extends Model
 {
     /** @use HasFactory<QuoteFactory> */
-    use HasFactory, SoftDeletes;
+    use AssignsCurrentCompany, HasFactory, SoftDeletes;
 
     protected $fillable = [
+        'company_id',
         'number',
         'client_id',
         'user_id',
@@ -47,6 +49,11 @@ class Quote extends Model
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);
+    }
+
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(Company::class);
     }
 
     public function user(): BelongsTo

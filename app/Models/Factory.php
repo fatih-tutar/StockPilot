@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\AssignsCurrentCompany;
 use Database\Factories\FactoryFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -12,7 +13,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Factory extends Model
 {
     /** @use HasFactory<FactoryFactory> */
-    use HasFactory, SoftDeletes;
+    use AssignsCurrentCompany, HasFactory, SoftDeletes;
 
     protected $fillable = [
         'company_id',

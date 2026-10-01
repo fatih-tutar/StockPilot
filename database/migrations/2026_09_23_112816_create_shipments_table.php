@@ -10,6 +10,7 @@ return new class extends Migration
     {
         Schema::create('shipments', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('company_id')->nullable()->constrained()->nullOnDelete();
             $table->string('number')->unique();
             $table->foreignId('client_id')->constrained()->restrictOnDelete();
             $table->foreignId('quote_id')->nullable()->constrained()->nullOnDelete();
