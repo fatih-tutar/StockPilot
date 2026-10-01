@@ -3,6 +3,7 @@
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\FactoryController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\QuoteController;
@@ -35,6 +36,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('products.adjust-stock');
 
     Route::resource('clients', ClientController::class)->except(['show']);
+
+    Route::resource('factories', FactoryController::class)->except(['show']);
 
     Route::resource('quotes', QuoteController::class)->except(['show']);
 

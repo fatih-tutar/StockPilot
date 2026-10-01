@@ -69,6 +69,11 @@ class Product extends Model
         return $this->belongsTo(Category::class);
     }
 
+    public function factory(): BelongsTo
+    {
+        return $this->belongsTo(Factory::class);
+    }
+
     public function stockMovements(): HasMany
     {
         return $this->hasMany(StockMovement::class);

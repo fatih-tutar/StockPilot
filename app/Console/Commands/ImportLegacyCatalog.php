@@ -10,16 +10,21 @@ use Database\Seeders\CategoryColumnDefinitionSeeder;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class ImportLegacyCatalog extends Command
 {
-    protected $signature = 'stockpilot:import-legacy {path : Directory with the legacy CSV exports}';
+    protected $signature = 'stockpilot:import-legacy {path : Directory with the legacy CSV exports} {--only= : Import a single file, currently factories}';
 
-    protected $description = 'Import companies, categories, column layout, and products from local CSV exports';
+    protected $description = 'Import companies, categories, column layout, products, and factories from local CSV exports';
 
     public function handle(): int
     {
         $path = rtrim((string) $this->argument('path'), '/');
+
+        if ($this->option('only') === 'factories') {
+            return $this->importFactoriesOnly($path);
+        }
 
         foreach (['companies.csv', 'categories.csv', 'category_columns_definitions.csv', 'category_columns.csv', 'products.csv'] as $file) {
             if (! is_file($path.'/'.$file)) {
@@ -51,8 +56,11 @@ class ImportLegacyCatalog extends Command
         $now = now();
         $skippedProducts = 0;
 
-        DB::transaction(function () use ($companies, $categories, $assignments, $products, $definitionIds, $oldDefinitionNames, $categoryIds, $now, &$skippedProducts): void {
+        DB::transaction(function () use ($path, $companies, $categories, $assignments, $products, $definitionIds, $oldDefinitionNames, $categoryIds, $now, &$skippedProducts): void {
             Product::withTrashed()->forceDelete();
+            if (Schema::hasTable('factories')) {
+                DB::table('factories')->delete();
+            }
             DB::table('category_columns')->delete();
             Category::withTrashed()->update(['parent_id' => null]);
             Category::withTrashed()->forceDelete();
@@ -71,6 +79,10 @@ class ImportLegacyCatalog extends Command
                     'updated_at' => $now,
                 ];
             }, $companies));
+
+            if (is_file($path.'/factories.csv')) {
+                $this->insertFactories($this->csv($path.'/factories.csv'), $now);
+            }
 
             DB::table('categories')->insert(array_map(function (array $category) use ($now): array {
                 $deleted = ($category['is_deleted'] ?? '0') === '1';
@@ -162,7 +174,10 @@ class ImportLegacyCatalog extends Command
                 DB::table('products')->insert($chunk);
             }
 
-            foreach (['companies', 'categories', 'products'] as $table) {
+            foreach (['companies', 'categories', 'products', 'factories'] as $table) {
+                if (! Schema::hasTable($table)) {
+                    continue;
+                }
                 DB::statement(
                     "SELECT setval(pg_get_serial_sequence('{$table}', 'id'), COALESCE((SELECT MAX(id) FROM {$table}), 1))",
                 );
@@ -175,6 +190,60 @@ class ImportLegacyCatalog extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    private function importFactoriesOnly(string $path): int
+    {
+        $file = $path.'/factories.csv';
+        if (! is_file($file)) {
+            $this->error("Missing factories.csv in {$path}");
+
+            return self::FAILURE;
+        }
+
+        $rows = $this->csv($file);
+        $now = now();
+
+        DB::transaction(function () use ($rows, $now): void {
+            $this->insertFactories($rows, $now);
+            DB::statement(
+                "SELECT setval(pg_get_serial_sequence('factories', 'id'), COALESCE((SELECT MAX(id) FROM factories), 1))",
+            );
+        });
+
+        $this->info('Imported '.count($rows).' factories.');
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * @param  array<int, array<string, string|null>>  $rows
+     */
+    private function insertFactories(array $rows, Carbon $now): void
+    {
+        $companyIds = DB::table('companies')->pluck('id')->flip();
+
+        foreach ($rows as $row) {
+            $companyId = (int) ($row['company_id'] ?? 0);
+            $deleted = ($row['is_deleted'] ?? '0') === '1';
+
+            DB::table('factories')->updateOrInsert(
+                ['id' => (int) $row['id']],
+                [
+                    'company_id' => $companyIds->has($companyId) ? $companyId : null,
+                    'name' => $row['name'],
+                    'phone' => $this->blankToNull($row['phone'] ?? null),
+                    'email' => $this->blankToNull($row['email'] ?? null),
+                    'address' => $this->blankToNull($row['address'] ?? null),
+                    'labor_cost' => $this->money($row['labor_cost'] ?? null),
+                    'fine_labor_cost' => $this->money($row['fine_labor_cost'] ?? null),
+                    'is_active' => ! $deleted,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                    'deleted_at' => $deleted ? $now : null,
+                ],
+            );
+        }
     }
 
     /**
