@@ -2,9 +2,11 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\VehicleDocument;
 use App\Models\Category;
 use App\Models\CategoryColumnDefinition;
 use App\Models\Product;
+use App\Models\Vehicle;
 use Carbon\Exceptions\InvalidFormatException;
 use Database\Seeders\CategoryColumnDefinitionSeeder;
 use Illuminate\Console\Command;
@@ -25,6 +27,10 @@ class ImportLegacyCatalog extends Command
 
         if ($this->option('only') === 'factories') {
             return $this->importFactoriesOnly($path);
+        }
+
+        if ($this->option('only') === 'vehicles') {
+            return $this->importVehiclesOnly($path);
         }
 
         foreach (['companies.csv', 'categories.csv', 'category_columns_definitions.csv', 'category_columns.csv', 'products.csv'] as $file) {
@@ -185,6 +191,10 @@ class ImportLegacyCatalog extends Command
             }
 
             $this->attachFactoryForeignKey();
+
+            if (is_file($path.'/vehicles.csv') && Schema::hasTable('vehicles')) {
+                $this->insertVehicles($this->csv($path.'/vehicles.csv'));
+            }
         });
 
         $this->info('Imported '.count($companies).' companies, '.count($categories).' categories, '.(count($products) - $skippedProducts).' products.');
@@ -218,6 +228,108 @@ class ImportLegacyCatalog extends Command
         $this->info('Imported '.count($rows).' factories.');
 
         return self::SUCCESS;
+    }
+
+    private function importVehiclesOnly(string $path): int
+    {
+        $file = $path.'/vehicles.csv';
+        if (! is_file($file)) {
+            $this->error("Missing vehicles.csv in {$path}");
+
+            return self::FAILURE;
+        }
+
+        $count = $this->insertVehicles($this->csv($file));
+        $this->info("Imported {$count} vehicles.");
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * @param  array<int, array<string, string|null>>  $rows
+     */
+    private function insertVehicles(array $rows): int
+    {
+        $companyId = DB::table('products')->whereNotNull('company_id')->value('company_id');
+        $imported = 0;
+
+        DB::transaction(function () use ($rows, $companyId, &$imported): void {
+            foreach ($rows as $row) {
+                $name = $this->blankToNull($row['name'] ?? null);
+                $plate = $this->blankToNull($row['license_plate'] ?? null);
+                if ($name === null && $plate === null) {
+                    continue;
+                }
+
+                $deleted = ($row['is_deleted'] ?? '0') === '1';
+                $createdAt = $this->unixTime($row['time'] ?? null) ?? now();
+
+                DB::table('vehicles')->updateOrInsert(
+                    ['id' => (int) $row['id']],
+                    [
+                        'company_id' => $companyId,
+                        'name' => $name ?? $plate,
+                        'license_plate' => $plate,
+                        'driver_name' => $this->blankToNull($row['driver'] ?? null),
+                        'description' => $this->blankToNull($row['description'] ?? null),
+                        'is_delivery_vehicle' => ($row['is_transport'] ?? '0') === '1',
+                        'casco_expires_on' => $this->optionalDate($row['casco_end_date'] ?? null),
+                        'insurance_expires_on' => $this->optionalDate($row['insurance_end_date'] ?? null),
+                        'inspection_due_on' => $this->optionalDate($row['inspection_date'] ?? null),
+                        'created_at' => $createdAt,
+                        'updated_at' => $createdAt,
+                        'deleted_at' => $deleted ? $createdAt : null,
+                    ],
+                );
+
+                $this->rememberVehicleDocument((int) $row['id'], VehicleDocument::Casco, $row['casco_pdf'] ?? null);
+                $this->rememberVehicleDocument((int) $row['id'], VehicleDocument::TrafficInsurance, $row['insurance_pdf'] ?? null);
+                $this->rememberVehicleDocument((int) $row['id'], VehicleDocument::Registration, $row['registration_pdf'] ?? null);
+                $imported++;
+            }
+
+            DB::statement(
+                "SELECT setval(pg_get_serial_sequence('vehicles', 'id'), COALESCE((SELECT MAX(id) FROM vehicles), 1))",
+            );
+        });
+
+        return $imported;
+    }
+
+    private function rememberVehicleDocument(int $vehicleId, VehicleDocument $document, ?string $fileName): void
+    {
+        $fileName = $this->blankToNull($fileName);
+        if ($fileName === null || ! Schema::hasTable('media')) {
+            return;
+        }
+
+        $existing = DB::table('media')
+            ->where('model_type', Vehicle::class)
+            ->where('model_id', $vehicleId)
+            ->where('collection', $document->value)
+            ->first();
+
+        if ($existing !== null && $existing->path !== null) {
+            return;
+        }
+
+        $now = now();
+        DB::table('media')->updateOrInsert(
+            [
+                'model_type' => Vehicle::class,
+                'model_id' => $vehicleId,
+                'collection' => $document->value,
+            ],
+            [
+                'disk' => 'local',
+                'path' => null,
+                'file_name' => $fileName,
+                'mime_type' => null,
+                'size' => null,
+                'created_at' => $existing->created_at ?? $now,
+                'updated_at' => $now,
+            ],
+        );
     }
 
     /**
@@ -326,6 +438,26 @@ class ImportLegacyCatalog extends Command
     private function integer(?string $value): int
     {
         return (int) trim((string) $value);
+    }
+
+    private function optionalDate(?string $value): ?string
+    {
+        $value = trim((string) $value);
+        if ($value === '' || str_starts_with($value, '0000')) {
+            return null;
+        }
+
+        return $value;
+    }
+
+    private function unixTime(?string $value): ?Carbon
+    {
+        $time = (int) trim((string) $value);
+        if ($time <= 0) {
+            return null;
+        }
+
+        return Carbon::createFromTimestamp($time);
     }
 
     private function optionalId(?string $value): ?int

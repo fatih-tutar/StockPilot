@@ -34,6 +34,14 @@ const canViewFactories = computed(() => {
     );
 });
 
+const canViewVehicles = computed(() => {
+    const permissions = page.props.auth?.user?.permissions || [];
+    return (
+        permissions.includes('vehicles.view') ||
+        permissions.includes('vehicles.manage')
+    );
+});
+
 const canViewQuotes = computed(() => {
     const permissions = page.props.auth?.user?.permissions || [];
     return (
@@ -98,6 +106,13 @@ const canViewShipments = computed(() => {
                                     :active="route().current('factories.*')"
                                 >
                                     Fabrikalar
+                                </NavLink>
+                                <NavLink
+                                    v-if="canViewVehicles"
+                                    :href="route('vehicles.index')"
+                                    :active="route().current('vehicles.*')"
+                                >
+                                    Araçlar
                                 </NavLink>
                                 <NavLink
                                     v-if="canViewQuotes"
@@ -236,6 +251,13 @@ const canViewShipments = computed(() => {
                             :active="route().current('factories.*')"
                         >
                             Fabrikalar
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            v-if="canViewVehicles"
+                            :href="route('vehicles.index')"
+                            :active="route().current('vehicles.*')"
+                        >
+                            Araçlar
                         </ResponsiveNavLink>
                         <ResponsiveNavLink
                             v-if="canViewQuotes"

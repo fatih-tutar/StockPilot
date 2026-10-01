@@ -8,6 +8,7 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\QuoteController;
 use App\Http\Controllers\ShipmentController;
+use App\Http\Controllers\VehicleController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -38,6 +39,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('clients', ClientController::class)->except(['show']);
 
     Route::resource('factories', FactoryController::class)->except(['show']);
+
+    Route::get('vehicles/{vehicle}/documents/{medium}', [VehicleController::class, 'downloadDocument'])
+        ->name('vehicles.documents.download');
+    Route::resource('vehicles', VehicleController::class)->except(['show']);
 
     Route::resource('quotes', QuoteController::class)->except(['show']);
 
