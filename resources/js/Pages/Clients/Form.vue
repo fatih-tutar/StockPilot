@@ -114,7 +114,7 @@ const destroyClient = () => {
                             <TextInput
                                 id="email"
                                 v-model="form.email"
-                                type="email"
+                                type="text"
                                 class="mt-1 block w-full"
                                 :disabled="isEdit && !canManage"
                             />
@@ -169,6 +169,45 @@ const destroyClient = () => {
                         </DangerButton>
                     </div>
                 </form>
+
+                <section
+                    v-if="isEdit"
+                    class="bg-white p-6 shadow-sm sm:rounded-lg"
+                >
+                    <h3 class="text-sm font-medium text-gray-800">Özel siparişler</h3>
+                    <p v-if="!client.custom_orders?.length" class="mt-3 text-sm text-gray-500">
+                        Bu firmaya bağlı özel sipariş yok.
+                    </p>
+                    <ul v-else class="mt-4 space-y-3">
+                        <li
+                            v-for="order in client.custom_orders"
+                            :key="order.id"
+                            class="rounded-md border border-gray-100 px-4 py-3"
+                        >
+                            <div class="flex items-start justify-between gap-3">
+                                <div>
+                                    <div class="text-sm text-gray-800">
+                                        {{ order.ordered_on ? order.ordered_on.split('-').reverse().join('.') : '—' }}
+                                        · {{ order.delivery_label }}
+                                        · {{ order.status_label }}
+                                    </div>
+                                    <p v-if="order.notes" class="mt-1 text-sm text-gray-600">
+                                        {{ order.notes }}
+                                    </p>
+                                    <p class="mt-1 text-sm text-gray-700">
+                                        {{ order.items.map((item) => item.product_name).join(', ') || 'Kalem yok' }}
+                                    </p>
+                                </div>
+                                <Link
+                                    :href="route('custom-orders.edit', order.id)"
+                                    class="text-sm text-indigo-600 hover:text-indigo-800"
+                                >
+                                    Aç
+                                </Link>
+                            </div>
+                        </li>
+                    </ul>
+                </section>
             </div>
         </div>
     </AuthenticatedLayout>

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\Catalog\StoreClientRequest;
 use App\Http\Requests\Catalog\UpdateClientRequest;
 use App\Models\Client;
+use App\Models\CustomOrder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -23,7 +24,8 @@ class ClientController extends Controller
                 $query->where(function ($inner) use ($search) {
                     $inner->where('name', 'like', "%{$search}%")
                         ->orWhere('phone', 'like', "%{$search}%")
-                        ->orWhere('email', 'like', "%{$search}%");
+                        ->orWhere('email', 'like', "%{$search}%")
+                        ->orWhere('address', 'like', "%{$search}%");
                 });
             })
             ->orderBy('name')
@@ -72,6 +74,8 @@ class ClientController extends Controller
     {
         $this->authorize('view', $client);
 
+        $client->load(['customOrders.items:id,custom_order_id,product_name,due_on']);
+
         return Inertia::render('Clients/Form', [
             'client' => [
                 'id' => $client->id,
@@ -81,6 +85,18 @@ class ClientController extends Controller
                 'address' => $client->address,
                 'notes' => $client->notes,
                 'is_active' => $client->is_active,
+                'custom_orders' => $client->customOrders->map(fn (CustomOrder $order) => [
+                    'id' => $order->id,
+                    'status_label' => $order->status->label(),
+                    'delivery_label' => $order->delivery_method->label(),
+                    'ordered_on' => $order->ordered_at?->toDateString(),
+                    'notes' => $order->notes,
+                    'items' => $order->items->map(fn ($item) => [
+                        'id' => $item->id,
+                        'product_name' => $item->product_name,
+                        'due_on' => $item->due_on?->toDateString(),
+                    ])->all(),
+                ])->all(),
             ],
             'canManage' => $request->user()->can('clients.manage'),
         ]);

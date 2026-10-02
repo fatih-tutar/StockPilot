@@ -2,6 +2,8 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\CustomOrderStatus;
+use App\Enums\DeliveryMethod;
 use App\Enums\VehicleDocument;
 use App\Models\Category;
 use App\Models\CategoryColumnDefinition;
@@ -31,6 +33,14 @@ class ImportLegacyCatalog extends Command
 
         if ($this->option('only') === 'vehicles') {
             return $this->importVehiclesOnly($path);
+        }
+
+        if ($this->option('only') === 'custom-orders') {
+            return $this->importCustomOrdersOnly($path);
+        }
+
+        if ($this->option('only') === 'clients') {
+            return $this->importClientsOnly($path);
         }
 
         foreach (['companies.csv', 'categories.csv', 'category_columns_definitions.csv', 'category_columns.csv', 'products.csv'] as $file) {
@@ -195,6 +205,21 @@ class ImportLegacyCatalog extends Command
             if (is_file($path.'/vehicles.csv') && Schema::hasTable('vehicles')) {
                 $this->insertVehicles($this->csv($path.'/vehicles.csv'));
             }
+
+            if (is_file($path.'/clients.csv') && Schema::hasTable('clients')) {
+                $this->insertClients($this->csv($path.'/clients.csv'));
+            }
+
+            if (
+                is_file($path.'/custom_orders.csv')
+                && is_file($path.'/custom_order_items.csv')
+                && Schema::hasTable('custom_orders')
+            ) {
+                $this->insertCustomOrders(
+                    $this->csv($path.'/custom_orders.csv'),
+                    $this->csv($path.'/custom_order_items.csv'),
+                );
+            }
         });
 
         $this->info('Imported '.count($companies).' companies, '.count($categories).' categories, '.(count($products) - $skippedProducts).' products.');
@@ -243,6 +268,167 @@ class ImportLegacyCatalog extends Command
         $this->info("Imported {$count} vehicles.");
 
         return self::SUCCESS;
+    }
+
+    private function importClientsOnly(string $path): int
+    {
+        $file = $path.'/clients.csv';
+        if (! is_file($file)) {
+            $this->error("Missing clients.csv in {$path}");
+
+            return self::FAILURE;
+        }
+
+        $count = $this->insertClients($this->csv($file));
+        $this->info("Imported {$count} clients.");
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * @param  array<int, array<string, string|null>>  $rows
+     */
+    private function insertClients(array $rows): int
+    {
+        $companyIds = DB::table('companies')->pluck('id')->flip();
+        $imported = 0;
+
+        DB::transaction(function () use ($rows, $companyIds, &$imported): void {
+            foreach ($rows as $row) {
+                $name = $this->blankToNull($row['name'] ?? null);
+                if ($name === null) {
+                    continue;
+                }
+
+                $deleted = ($row['is_deleted'] ?? '0') === '1';
+                $companyId = (int) ($row['company_id'] ?? 0);
+                $now = now();
+
+                DB::table('clients')->updateOrInsert(
+                    ['id' => (int) $row['id']],
+                    [
+                        'company_id' => $companyIds->has($companyId) ? $companyId : null,
+                        'name' => $name,
+                        'phone' => $this->blankToNull($row['phone'] ?? null),
+                        'email' => $this->blankToNull($row['email'] ?? null),
+                        'address' => $this->blankToNull($row['address'] ?? null),
+                        'is_active' => ! $deleted,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                        'deleted_at' => $deleted ? $now : null,
+                    ],
+                );
+                $imported++;
+            }
+
+            DB::statement(
+                "SELECT setval(pg_get_serial_sequence('clients', 'id'), COALESCE((SELECT MAX(id) FROM clients), 1))",
+            );
+        });
+
+        return $imported;
+    }
+
+    private function importCustomOrdersOnly(string $path): int
+    {
+        $ordersFile = $path.'/custom_orders.csv';
+        $itemsFile = $path.'/custom_order_items.csv';
+        if (! is_file($ordersFile) || ! is_file($itemsFile)) {
+            $this->error("Missing custom_orders.csv or custom_order_items.csv in {$path}");
+
+            return self::FAILURE;
+        }
+
+        $counts = $this->insertCustomOrders($this->csv($ordersFile), $this->csv($itemsFile));
+        $this->info("Imported {$counts['orders']} custom orders and {$counts['items']} lines.");
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * @param  array<int, array<string, string|null>>  $orders
+     * @param  array<int, array<string, string|null>>  $items
+     * @return array{orders: int, items: int}
+     */
+    private function insertCustomOrders(array $orders, array $items): array
+    {
+        $companyIds = DB::table('companies')->pluck('id')->flip();
+        $clientIds = Schema::hasTable('clients') ? DB::table('clients')->pluck('id')->flip() : collect();
+        $userIds = DB::table('users')->pluck('id')->flip();
+        $factoryIds = Schema::hasTable('factories') ? DB::table('factories')->pluck('id')->flip() : collect();
+        $importedOrders = 0;
+        $importedItems = 0;
+
+        DB::transaction(function () use ($orders, $items, $companyIds, $clientIds, $userIds, $factoryIds, &$importedOrders, &$importedItems): void {
+            foreach ($orders as $row) {
+                $orderedAt = $this->timestamp($row['datetime'] ?? null) ?? now();
+                $deleted = ($row['is_deleted'] ?? '0') === '1';
+                $companyId = (int) ($row['company_id'] ?? 0);
+                $clientId = (int) ($row['client_id'] ?? 0);
+                $userId = (int) ($row['created_by'] ?? 0);
+
+                DB::table('custom_orders')->updateOrInsert(
+                    ['id' => (int) $row['id']],
+                    [
+                        'company_id' => $companyIds->has($companyId) ? $companyId : null,
+                        'client_id' => $clientIds->has($clientId) ? $clientId : null,
+                        'user_id' => $userIds->has($userId) ? $userId : null,
+                        'delivery_method' => DeliveryMethod::fromLegacy($row['delivery_type'] ?? null)->value,
+                        'status' => ($row['status'] ?? '0') === '1'
+                            ? CustomOrderStatus::Closed->value
+                            : CustomOrderStatus::Open->value,
+                        'notes' => $this->blankToNull($row['description'] ?? null),
+                        'ordered_at' => $orderedAt,
+                        'created_at' => $orderedAt,
+                        'updated_at' => $orderedAt,
+                        'deleted_at' => $deleted ? $orderedAt : null,
+                    ],
+                );
+                $importedOrders++;
+            }
+
+            $orderIds = DB::table('custom_orders')->pluck('id')->flip();
+
+            foreach ($items as $row) {
+                $orderId = (int) ($row['custom_order_id'] ?? 0);
+                $productName = $this->blankToNull($row['product'] ?? null);
+                if (! $orderIds->has($orderId) || $productName === null) {
+                    continue;
+                }
+
+                $createdAt = $this->timestamp($row['datetime'] ?? null) ?? now();
+                $deleted = ($row['is_deleted'] ?? '0') === '1';
+                $factoryId = (int) ($row['factory_id'] ?? 0);
+
+                DB::table('custom_order_items')->updateOrInsert(
+                    ['id' => (int) $row['id']],
+                    [
+                        'custom_order_id' => $orderId,
+                        'factory_id' => $factoryIds->has($factoryId) ? $factoryId : null,
+                        'product_name' => $productName,
+                        'length' => $this->blankToNull($row['length'] ?? null),
+                        'quantity' => $this->money($row['quantity'] ?? null),
+                        'unit_price' => $this->money($row['price'] ?? null),
+                        'due_on' => $this->optionalDate($row['due_date'] ?? null),
+                        'created_at' => $createdAt,
+                        'updated_at' => $createdAt,
+                        'deleted_at' => $deleted ? $createdAt : null,
+                    ],
+                );
+                $importedItems++;
+            }
+
+            foreach (['custom_orders', 'custom_order_items'] as $table) {
+                DB::statement(
+                    "SELECT setval(pg_get_serial_sequence('{$table}', 'id'), COALESCE((SELECT MAX(id) FROM {$table}), 1))",
+                );
+            }
+        });
+
+        return [
+            'orders' => $importedOrders,
+            'items' => $importedItems,
+        ];
     }
 
     /**
@@ -448,6 +634,20 @@ class ImportLegacyCatalog extends Command
         }
 
         return $value;
+    }
+
+    private function timestamp(?string $value): ?Carbon
+    {
+        $value = trim((string) $value);
+        if ($value === '' || str_starts_with($value, '0000')) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($value);
+        } catch (InvalidFormatException) {
+            return null;
+        }
     }
 
     private function unixTime(?string $value): ?Carbon

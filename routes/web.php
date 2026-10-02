@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ClientController;
+use App\Http\Controllers\CustomOrderController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FactoryController;
 use App\Http\Controllers\ProductController;
@@ -43,6 +44,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('vehicles/{vehicle}/documents/{medium}', [VehicleController::class, 'downloadDocument'])
         ->name('vehicles.documents.download');
     Route::resource('vehicles', VehicleController::class)->except(['show']);
+
+    Route::post('custom-orders/{custom_order}/close', [CustomOrderController::class, 'close'])
+        ->name('custom-orders.close');
+    Route::post('custom-orders/{custom_order}/reopen', [CustomOrderController::class, 'reopen'])
+        ->name('custom-orders.reopen');
+    Route::resource('custom-orders', CustomOrderController::class)->except(['show']);
 
     Route::resource('quotes', QuoteController::class)->except(['show']);
 
