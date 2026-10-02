@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ClientController;
+use App\Http\Controllers\CustomerVisitController;
 use App\Http\Controllers\CustomOrderController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FactoryController;
@@ -50,6 +51,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('custom-orders/{custom_order}/reopen', [CustomOrderController::class, 'reopen'])
         ->name('custom-orders.reopen');
     Route::resource('custom-orders', CustomOrderController::class)->except(['show']);
+
+    Route::post('customer-visits/categories', [CustomerVisitController::class, 'storeCategory'])
+        ->name('customer-visits.categories.store');
+    Route::put('customer-visits/categories/{customer_visit_category}', [CustomerVisitController::class, 'updateCategory'])
+        ->name('customer-visits.categories.update');
+    Route::delete('customer-visits/categories/{customer_visit_category}', [CustomerVisitController::class, 'destroyCategory'])
+        ->name('customer-visits.categories.destroy');
+    Route::resource('customer-visits', CustomerVisitController::class)->except(['show']);
 
     Route::resource('quotes', QuoteController::class)->except(['show']);
 

@@ -42,6 +42,14 @@ const canViewVehicles = computed(() => {
     );
 });
 
+const canViewVisits = computed(() => {
+    const permissions = page.props.auth?.user?.permissions || [];
+    return (
+        permissions.includes('visits.view') ||
+        permissions.includes('visits.manage')
+    );
+});
+
 const canViewCustomOrders = computed(() => {
     const permissions = page.props.auth?.user?.permissions || [];
     return (
@@ -128,6 +136,13 @@ const canViewShipments = computed(() => {
                                     :active="route().current('custom-orders.*')"
                                 >
                                     Özel siparişler
+                                </NavLink>
+                                <NavLink
+                                    v-if="canViewVisits"
+                                    :href="route('customer-visits.index')"
+                                    :active="route().current('customer-visits.*')"
+                                >
+                                    Ziyaretler
                                 </NavLink>
                                 <NavLink
                                     v-if="canViewQuotes"
@@ -280,6 +295,13 @@ const canViewShipments = computed(() => {
                             :active="route().current('custom-orders.*')"
                         >
                             Özel siparişler
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            v-if="canViewVisits"
+                            :href="route('customer-visits.index')"
+                            :active="route().current('customer-visits.*')"
+                        >
+                            Ziyaretler
                         </ResponsiveNavLink>
                         <ResponsiveNavLink
                             v-if="canViewQuotes"

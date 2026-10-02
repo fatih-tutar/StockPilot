@@ -43,6 +43,10 @@ class ImportLegacyCatalog extends Command
             return $this->importClientsOnly($path);
         }
 
+        if ($this->option('only') === 'visits') {
+            return $this->importVisitsOnly($path);
+        }
+
         foreach (['companies.csv', 'categories.csv', 'category_columns_definitions.csv', 'category_columns.csv', 'products.csv'] as $file) {
             if (! is_file($path.'/'.$file)) {
                 $this->error("Missing {$file} in {$path}");
@@ -211,6 +215,17 @@ class ImportLegacyCatalog extends Command
             }
 
             if (
+                is_file($path.'/customer_visit_categories.csv')
+                && is_file($path.'/ziyaretler.csv')
+                && Schema::hasTable('customer_visits')
+            ) {
+                $this->insertVisits(
+                    $this->csv($path.'/customer_visit_categories.csv'),
+                    $this->csv($path.'/ziyaretler.csv'),
+                );
+            }
+
+            if (
                 is_file($path.'/custom_orders.csv')
                 && is_file($path.'/custom_order_items.csv')
                 && Schema::hasTable('custom_orders')
@@ -342,6 +357,106 @@ class ImportLegacyCatalog extends Command
         );
 
         return $imported;
+    }
+
+    private function importVisitsOnly(string $path): int
+    {
+        $categoriesFile = $path.'/customer_visit_categories.csv';
+        $visitsFile = $path.'/ziyaretler.csv';
+        if (! is_file($categoriesFile) || ! is_file($visitsFile)) {
+            $this->error("Missing customer_visit_categories.csv or ziyaretler.csv in {$path}");
+
+            return self::FAILURE;
+        }
+
+        $counts = $this->insertVisits($this->csv($categoriesFile), $this->csv($visitsFile));
+        $this->info("Imported {$counts['categories']} visit categories and {$counts['visits']} visits.");
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * @param  array<int, array<string, string|null>>  $categories
+     * @param  array<int, array<string, string|null>>  $visits
+     * @return array{categories: int, visits: int}
+     */
+    private function insertVisits(array $categories, array $visits): array
+    {
+        $companyIds = DB::table('companies')->pluck('id')->flip();
+        $fallbackCompanyId = DB::table('products')->whereNotNull('company_id')->value('company_id');
+        $categoryCount = 0;
+        $visitCount = 0;
+
+        DB::transaction(function () use ($categories, $visits, $companyIds, $fallbackCompanyId, &$categoryCount, &$visitCount): void {
+            foreach ($categories as $row) {
+                $name = $this->blankToNull($row['name'] ?? null);
+                if ($name === null) {
+                    continue;
+                }
+
+                $deleted = ($row['is_deleted'] ?? '0') === '1';
+                $companyId = (int) ($row['company_id'] ?? 0);
+                $createdAt = $this->timestamp($row['date'] ?? null) ?? now();
+
+                DB::table('customer_visit_categories')->updateOrInsert(
+                    ['id' => (int) $row['id']],
+                    [
+                        'company_id' => $companyIds->has($companyId) ? $companyId : null,
+                        'name' => $name,
+                        'created_at' => $createdAt,
+                        'updated_at' => $createdAt,
+                        'deleted_at' => $deleted ? $createdAt : null,
+                    ],
+                );
+                $categoryCount++;
+            }
+
+            $categoryCompanies = DB::table('customer_visit_categories')->pluck('company_id', 'id');
+
+            foreach ($visits as $row) {
+                $customerName = $this->blankToNull($row['musteriismi'] ?? null);
+                if ($customerName === null) {
+                    continue;
+                }
+
+                $deleted = ($row['silik'] ?? '0') === '1';
+                $categoryId = (int) ($row['iskolu'] ?? 0);
+                $createdAt = $this->unixTime($row['saniye'] ?? null) ?? now();
+                $companyId = $categoryCompanies->get($categoryId) ?: $fallbackCompanyId;
+
+                DB::table('customer_visits')->updateOrInsert(
+                    ['id' => (int) $row['id']],
+                    [
+                        'company_id' => $companyId,
+                        'customer_visit_category_id' => $categoryCompanies->has($categoryId) ? $categoryId : null,
+                        'city' => $this->blankToNull($row['il'] ?? null),
+                        'district' => $this->blankToNull($row['ilce'] ?? null),
+                        'customer_name' => $customerName,
+                        'contact_name' => $this->blankToNull($row['yetkilikisi'] ?? null),
+                        'phone' => $this->blankToNull($row['telefon'] ?? null),
+                        'visited_on' => $this->legacyDay($row['ziyarettarihi'] ?? null),
+                        'planned_on' => $this->legacyDay($row['planlanantarih'] ?? null),
+                        'address' => $this->blankToNull($row['acikadres'] ?? null),
+                        'notes' => $this->blankToNull($row['ziyaretnotu'] ?? null),
+                        'created_at' => $createdAt,
+                        'updated_at' => $createdAt,
+                        'deleted_at' => $deleted ? $createdAt : null,
+                    ],
+                );
+                $visitCount++;
+            }
+
+            foreach (['customer_visit_categories', 'customer_visits'] as $table) {
+                DB::statement(
+                    "SELECT setval(pg_get_serial_sequence('{$table}', 'id'), COALESCE((SELECT MAX(id) FROM {$table}), 1))",
+                );
+            }
+        });
+
+        return [
+            'categories' => $categoryCount,
+            'visits' => $visitCount,
+        ];
     }
 
     private function importCustomOrdersOnly(string $path): int
@@ -649,6 +764,24 @@ class ImportLegacyCatalog extends Command
         }
 
         return $value;
+    }
+
+    private function legacyDay(?string $value): ?string
+    {
+        $value = trim((string) $value);
+        if ($value === '' || str_starts_with($value, '0000')) {
+            return null;
+        }
+
+        foreach (['d-m-Y', 'Y-m-d'] as $format) {
+            try {
+                return Carbon::createFromFormat($format, $value)->toDateString();
+            } catch (InvalidFormatException) {
+                continue;
+            }
+        }
+
+        return null;
     }
 
     private function timestamp(?string $value): ?Carbon
