@@ -79,16 +79,16 @@ const canViewShipments = computed(() => {
     <div>
         <div class="min-h-screen bg-gray-100">
             <nav class="border-b border-gray-100 bg-white">
-                <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-                    <div class="flex h-16 justify-between">
-                        <div class="flex">
+                <div class="px-4 sm:px-6 lg:px-8">
+                    <div class="flex h-16 items-stretch justify-between gap-4">
+                        <div class="flex min-w-0 flex-1 items-stretch gap-6">
                             <div class="flex shrink-0 items-center">
                                 <Link :href="route('dashboard')">
                                     <ApplicationLogo class="block h-9 w-9" />
                                 </Link>
                             </div>
 
-                            <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
+                            <div class="hidden min-w-0 flex-1 items-stretch gap-x-5 overflow-x-auto [scrollbar-width:thin] xl:-my-px xl:flex [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300">
                                 <NavLink
                                     :href="route('dashboard')"
                                     :active="route().current('dashboard')"
@@ -161,14 +161,14 @@ const canViewShipments = computed(() => {
                             </div>
                         </div>
 
-                        <div class="hidden sm:ms-6 sm:flex sm:items-center">
+                        <div class="hidden shrink-0 xl:ms-2 xl:flex xl:items-center">
                             <div class="relative ms-3">
                                 <Dropdown align="right" width="48">
                                     <template #trigger>
                                         <span class="inline-flex rounded-md">
                                             <button
                                                 type="button"
-                                                class="inline-flex items-center rounded-md border border-transparent bg-white px-3 py-2 text-sm font-medium leading-4 text-gray-500 transition duration-150 ease-in-out hover:text-gray-700 focus:outline-none"
+                                                class="inline-flex items-center whitespace-nowrap rounded-md border border-transparent bg-white px-3 py-2 text-sm font-medium leading-4 text-gray-500 transition duration-150 ease-in-out hover:text-gray-700 focus:outline-none"
                                             >
                                                 {{ $page.props.auth.user.name }}
                                                 <svg
@@ -203,7 +203,7 @@ const canViewShipments = computed(() => {
                             </div>
                         </div>
 
-                        <div class="-me-2 flex items-center sm:hidden">
+                        <div class="-me-2 flex items-center xl:hidden">
                             <button
                                 class="inline-flex items-center justify-center rounded-md p-2 text-gray-400 transition duration-150 ease-in-out hover:bg-gray-100 hover:text-gray-500 focus:bg-gray-100 focus:text-gray-500 focus:outline-none"
                                 @click="showingNavigationDropdown = !showingNavigationDropdown"
@@ -245,7 +245,7 @@ const canViewShipments = computed(() => {
                         block: showingNavigationDropdown,
                         hidden: !showingNavigationDropdown,
                     }"
-                    class="sm:hidden"
+                    class="xl:hidden"
                 >
                     <div class="space-y-1 pb-3 pt-2">
                         <ResponsiveNavLink
