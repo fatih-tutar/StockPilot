@@ -7,6 +7,7 @@ use App\Enums\DeliveryMethod;
 use App\Enums\VehicleDocument;
 use App\Models\Category;
 use App\Models\CategoryColumnDefinition;
+use App\Models\OrganizationMember;
 use App\Models\Product;
 use App\Models\Vehicle;
 use Carbon\Exceptions\InvalidFormatException;
@@ -19,7 +20,7 @@ use Illuminate\Support\Facades\Schema;
 
 class ImportLegacyCatalog extends Command
 {
-    protected $signature = 'stockpilot:import-legacy {path : Directory with the legacy CSV exports} {--only= : Import one dataset: factories, vehicles, custom-orders, clients, visits, or jobs}';
+    protected $signature = 'stockpilot:import-legacy {path : Directory with the legacy CSV exports} {--only= : Import one dataset: factories, vehicles, custom-orders, clients, visits, jobs, or organizations}';
 
     protected $description = 'Import companies, categories, column layout, products, and factories from local CSV exports';
 
@@ -49,6 +50,10 @@ class ImportLegacyCatalog extends Command
 
         if ($this->option('only') === 'jobs') {
             return $this->importJobsOnly($path);
+        }
+
+        if ($this->option('only') === 'organizations') {
+            return $this->importOrganizationsOnly($path);
         }
 
         foreach (['companies.csv', 'categories.csv', 'category_columns_definitions.csv', 'category_columns.csv', 'products.csv'] as $file) {
@@ -231,6 +236,10 @@ class ImportLegacyCatalog extends Command
 
             if (is_file($path.'/jobs.csv') && Schema::hasTable('work_tasks')) {
                 $this->insertJobs($this->csv($path.'/jobs.csv'));
+            }
+
+            if (is_file($path.'/organizations.csv') && Schema::hasTable('organization_members')) {
+                $this->insertOrganizations($this->csv($path.'/organizations.csv'));
             }
 
             if (
@@ -522,6 +531,101 @@ class ImportLegacyCatalog extends Command
         });
 
         return $count;
+    }
+
+    private function importOrganizationsOnly(string $path): int
+    {
+        $file = $path.'/organizations.csv';
+        if (! is_file($file)) {
+            $this->error("Missing organizations.csv in {$path}");
+
+            return self::FAILURE;
+        }
+
+        $count = $this->insertOrganizations($this->csv($file));
+        $this->info("Imported {$count} organization members.");
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * @param  array<int, array<string, string|null>>  $rows
+     */
+    private function insertOrganizations(array $rows): int
+    {
+        $userIds = DB::table('users')->pluck('id')->flip();
+        $fallbackCompanyId = DB::table('products')->whereNotNull('company_id')->value('company_id');
+        $count = 0;
+
+        DB::transaction(function () use ($rows, $userIds, $fallbackCompanyId, &$count): void {
+            foreach ($rows as $row) {
+                $id = (int) ($row['id'] ?? 0);
+                if ($id <= 0) {
+                    continue;
+                }
+
+                $userId = (int) ($row['user_id'] ?? 0);
+                $createdAt = $this->timestamp($row['created_at'] ?? null) ?? now();
+
+                DB::table('organization_members')->updateOrInsert(
+                    ['id' => $id],
+                    [
+                        'company_id' => $fallbackCompanyId,
+                        'user_id' => $userIds->has($userId) ? $userId : null,
+                        'name' => $this->blankToNull($row['name'] ?? null),
+                        'title' => $this->blankToNull($row['title'] ?? null),
+                        'position' => $id,
+                        'created_at' => $createdAt,
+                        'updated_at' => $createdAt,
+                    ],
+                );
+
+                $this->rememberOrganizationPhoto($id, $row['photo'] ?? null);
+                $count++;
+            }
+
+            DB::statement(
+                "SELECT setval(pg_get_serial_sequence('organization_members', 'id'), COALESCE((SELECT MAX(id) FROM organization_members), 1))",
+            );
+        });
+
+        return $count;
+    }
+
+    private function rememberOrganizationPhoto(int $memberId, ?string $fileName): void
+    {
+        $fileName = $this->blankToNull($fileName);
+        if ($fileName === null || ! Schema::hasTable('media')) {
+            return;
+        }
+
+        $existing = DB::table('media')
+            ->where('model_type', OrganizationMember::class)
+            ->where('model_id', $memberId)
+            ->where('collection', OrganizationMember::PHOTO)
+            ->first();
+
+        if ($existing !== null && $existing->path !== null) {
+            return;
+        }
+
+        $now = now();
+        DB::table('media')->updateOrInsert(
+            [
+                'model_type' => OrganizationMember::class,
+                'model_id' => $memberId,
+                'collection' => OrganizationMember::PHOTO,
+            ],
+            [
+                'disk' => 'local',
+                'path' => null,
+                'file_name' => $fileName,
+                'mime_type' => null,
+                'size' => null,
+                'created_at' => $existing->created_at ?? $now,
+                'updated_at' => $now,
+            ],
+        );
     }
 
     private function importCustomOrdersOnly(string $path): int

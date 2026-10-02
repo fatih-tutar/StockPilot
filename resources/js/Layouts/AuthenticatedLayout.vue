@@ -58,6 +58,14 @@ const canViewWorkTasks = computed(() => {
     );
 });
 
+const canViewOrganization = computed(() => {
+    const permissions = page.props.auth?.user?.permissions || [];
+    return (
+        permissions.includes('organizations.view') ||
+        permissions.includes('organizations.manage')
+    );
+});
+
 const canViewCustomOrders = computed(() => {
     const permissions = page.props.auth?.user?.permissions || [];
     return (
@@ -86,7 +94,7 @@ const canViewShipments = computed(() => {
 <template>
     <div>
         <div class="min-h-screen bg-gray-100">
-            <nav class="border-b border-gray-100 bg-white">
+            <nav class="border-b border-gray-100 bg-white print:hidden">
                 <div class="px-4 sm:px-6 lg:px-8">
                     <div class="flex h-16 items-stretch justify-between gap-4">
                         <div class="flex min-w-0 flex-1 items-stretch gap-6">
@@ -158,6 +166,13 @@ const canViewShipments = computed(() => {
                                     :active="route().current('work-tasks.*')"
                                 >
                                     İşler
+                                </NavLink>
+                                <NavLink
+                                    v-if="canViewOrganization"
+                                    :href="route('organization.index')"
+                                    :active="route().current('organization.*')"
+                                >
+                                    Organizasyon
                                 </NavLink>
                                 <NavLink
                                     v-if="canViewQuotes"
@@ -324,6 +339,13 @@ const canViewShipments = computed(() => {
                             :active="route().current('work-tasks.*')"
                         >
                             İşler
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            v-if="canViewOrganization"
+                            :href="route('organization.index')"
+                            :active="route().current('organization.*')"
+                        >
+                            Organizasyon
                         </ResponsiveNavLink>
                         <ResponsiveNavLink
                             v-if="canViewQuotes"

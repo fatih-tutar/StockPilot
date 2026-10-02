@@ -6,6 +6,7 @@ use App\Http\Controllers\CustomerVisitController;
 use App\Http\Controllers\CustomOrderController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FactoryController;
+use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\QuoteController;
@@ -62,6 +63,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('customer-visits', CustomerVisitController::class)->except(['show']);
 
     Route::resource('work-tasks', WorkTaskController::class)->only(['index', 'store', 'update', 'destroy']);
+
+    Route::get('organization/{organization_member}/photo', [OrganizationController::class, 'photo'])
+        ->name('organization.photo');
+    Route::get('organization', [OrganizationController::class, 'index'])->name('organization.index');
+    Route::post('organization', [OrganizationController::class, 'update'])->name('organization.update');
 
     Route::resource('quotes', QuoteController::class)->except(['show']);
 
