@@ -4,11 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Enums\QuoteStatus;
 use App\Enums\ShipmentStatus;
+use App\Enums\WorkTaskStatus;
 use App\Models\Client;
 use App\Models\Product;
 use App\Models\Quote;
 use App\Models\Shipment;
 use App\Models\StockMovement;
+use App\Models\WorkTask;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -23,6 +25,11 @@ class DashboardController extends Controller
         $canViewClients = $user->can('clients.view') || $user->can('clients.manage');
         $canViewQuotes = $user->can('quotes.view') || $user->can('quotes.manage');
         $canViewShipments = $user->can('shipments.view') || $user->can('shipments.manage');
+        $canViewWorkTasks = $user->can('work_tasks.view') || $user->can('work_tasks.manage');
+
+        if ($canViewWorkTasks) {
+            WorkTask::rollMonthly();
+        }
 
         $stats = [
             'low_stock_count' => $canViewStock ? $this->lowStockQuery()->count() : null,
@@ -116,11 +123,31 @@ class DashboardController extends Controller
                     ])
                     ->values()
                 : [],
+            'upcomingWorkTasks' => $canViewWorkTasks
+                ? WorkTask::query()
+                    ->where('status', WorkTaskStatus::Open)
+                    ->where(function ($query): void {
+                        $query->whereDate('due_on', '<', now()->toDateString())
+                            ->orWhereBetween('due_on', [now()->toDateString(), now()->addDays(30)->toDateString()]);
+                    })
+                    ->orderBy('due_on')
+                    ->orderBy('id')
+                    ->limit(8)
+                    ->get()
+                    ->map(fn (WorkTask $task) => [
+                        'id' => $task->id,
+                        'title' => $task->title,
+                        'due_on' => $task->due_on?->toDateString(),
+                        'is_overdue' => $task->due_on !== null && $task->due_on->toDateString() < now()->toDateString(),
+                    ])
+                    ->values()
+                : [],
             'can' => [
                 'stock' => $canViewStock,
                 'clients' => $canViewClients,
                 'quotes' => $canViewQuotes,
                 'shipments' => $canViewShipments,
+                'work_tasks' => $canViewWorkTasks,
             ],
         ]);
     }

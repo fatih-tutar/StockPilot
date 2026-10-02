@@ -9,6 +9,7 @@ const props = defineProps({
     openQuotes: { type: Array, default: () => [] },
     activeShipments: { type: Array, default: () => [] },
     recentMovements: { type: Array, default: () => [] },
+    upcomingWorkTasks: { type: Array, default: () => [] },
     can: { type: Object, required: true },
 });
 
@@ -248,6 +249,47 @@ const movementTypeLabel = (type) => {
                                 class="px-4 py-8 text-center text-gray-500"
                             >
                                 Aktif sevkiyat yok.
+                            </li>
+                        </ul>
+                    </section>
+
+                    <section
+                        v-if="can.work_tasks"
+                        class="overflow-hidden bg-white shadow-sm sm:rounded-lg"
+                    >
+                        <div class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+                            <h3 class="font-medium text-gray-900">Önümüzdeki işler</h3>
+                            <Link
+                                :href="route('work-tasks.index')"
+                                class="text-sm text-indigo-600 hover:text-indigo-800"
+                            >
+                                Tümü
+                            </Link>
+                        </div>
+                        <ul class="divide-y divide-gray-100 text-sm">
+                            <li
+                                v-for="task in upcomingWorkTasks"
+                                :key="task.id"
+                                class="flex items-center justify-between gap-3 px-4 py-3"
+                            >
+                                <Link
+                                    :href="route('work-tasks.index')"
+                                    class="font-medium text-gray-900 hover:text-indigo-700"
+                                >
+                                    {{ task.title }}
+                                </Link>
+                                <p
+                                    class="shrink-0 text-xs"
+                                    :class="task.is_overdue ? 'font-medium text-red-700' : 'text-gray-500'"
+                                >
+                                    {{ task.due_on }}
+                                </p>
+                            </li>
+                            <li
+                                v-if="upcomingWorkTasks.length === 0"
+                                class="px-4 py-8 text-center text-gray-500"
+                            >
+                                Önümüzdeki 30 günde açık iş yok.
                             </li>
                         </ul>
                     </section>

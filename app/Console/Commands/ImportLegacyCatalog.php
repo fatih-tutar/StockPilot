@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\Schema;
 
 class ImportLegacyCatalog extends Command
 {
-    protected $signature = 'stockpilot:import-legacy {path : Directory with the legacy CSV exports} {--only= : Import a single file, currently factories}';
+    protected $signature = 'stockpilot:import-legacy {path : Directory with the legacy CSV exports} {--only= : Import one dataset: factories, vehicles, custom-orders, clients, visits, or jobs}';
 
     protected $description = 'Import companies, categories, column layout, products, and factories from local CSV exports';
 
@@ -45,6 +45,10 @@ class ImportLegacyCatalog extends Command
 
         if ($this->option('only') === 'visits') {
             return $this->importVisitsOnly($path);
+        }
+
+        if ($this->option('only') === 'jobs') {
+            return $this->importJobsOnly($path);
         }
 
         foreach (['companies.csv', 'categories.csv', 'category_columns_definitions.csv', 'category_columns.csv', 'products.csv'] as $file) {
@@ -223,6 +227,10 @@ class ImportLegacyCatalog extends Command
                     $this->csv($path.'/customer_visit_categories.csv'),
                     $this->csv($path.'/ziyaretler.csv'),
                 );
+            }
+
+            if (is_file($path.'/jobs.csv') && Schema::hasTable('work_tasks')) {
+                $this->insertJobs($this->csv($path.'/jobs.csv'));
             }
 
             if (
@@ -457,6 +465,63 @@ class ImportLegacyCatalog extends Command
             'categories' => $categoryCount,
             'visits' => $visitCount,
         ];
+    }
+
+    private function importJobsOnly(string $path): int
+    {
+        $file = $path.'/jobs.csv';
+        if (! is_file($file)) {
+            $this->error("Missing jobs.csv in {$path}");
+
+            return self::FAILURE;
+        }
+
+        $count = $this->insertJobs($this->csv($file));
+        $this->info("Imported {$count} jobs.");
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * @param  array<int, array<string, string|null>>  $rows
+     */
+    private function insertJobs(array $rows): int
+    {
+        $fallbackCompanyId = DB::table('products')->whereNotNull('company_id')->value('company_id');
+        $count = 0;
+
+        DB::transaction(function () use ($rows, $fallbackCompanyId, &$count): void {
+            foreach ($rows as $row) {
+                $title = $this->blankToNull($row['job'] ?? null);
+                if ($title === null) {
+                    continue;
+                }
+
+                $deleted = ($row['is_deleted'] ?? '0') === '1';
+                $createdAt = $this->timestamp($row['created_at'] ?? null) ?? now();
+
+                DB::table('work_tasks')->updateOrInsert(
+                    ['id' => (int) $row['id']],
+                    [
+                        'company_id' => $fallbackCompanyId,
+                        'title' => $title,
+                        'due_on' => $this->legacyDay($row['due_date'] ?? null),
+                        'repeats_monthly' => ($row['is_repeated'] ?? '0') === '1',
+                        'status' => ($row['status'] ?? '0') === '1' ? 'completed' : 'open',
+                        'created_at' => $createdAt,
+                        'updated_at' => $createdAt,
+                        'deleted_at' => $deleted ? $createdAt : null,
+                    ],
+                );
+                $count++;
+            }
+
+            DB::statement(
+                "SELECT setval(pg_get_serial_sequence('work_tasks', 'id'), COALESCE((SELECT MAX(id) FROM work_tasks), 1))",
+            );
+        });
+
+        return $count;
     }
 
     private function importCustomOrdersOnly(string $path): int

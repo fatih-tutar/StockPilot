@@ -11,6 +11,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\QuoteController;
 use App\Http\Controllers\ShipmentController;
 use App\Http\Controllers\VehicleController;
+use App\Http\Controllers\WorkTaskController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -59,6 +60,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('customer-visits/categories/{customer_visit_category}', [CustomerVisitController::class, 'destroyCategory'])
         ->name('customer-visits.categories.destroy');
     Route::resource('customer-visits', CustomerVisitController::class)->except(['show']);
+
+    Route::resource('work-tasks', WorkTaskController::class)->only(['index', 'store', 'update', 'destroy']);
 
     Route::resource('quotes', QuoteController::class)->except(['show']);
 
