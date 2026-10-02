@@ -291,40 +291,55 @@ class ImportLegacyCatalog extends Command
     private function insertClients(array $rows): int
     {
         $companyIds = DB::table('companies')->pluck('id')->flip();
+        $existingIds = DB::table('clients')->pluck('id')->flip();
+        $pending = array_values(array_filter(
+            $rows,
+            fn (array $row): bool => ! $existingIds->has((int) $row['id']),
+        ));
         $imported = 0;
 
-        DB::transaction(function () use ($rows, $companyIds, &$imported): void {
-            foreach ($rows as $row) {
-                $name = $this->blankToNull($row['name'] ?? null);
-                if ($name === null) {
-                    continue;
+        $this->info('Clients already stored: '.(count($rows) - count($pending)).'. Remaining: '.count($pending).'.');
+
+        foreach (array_chunk($pending, 50) as $chunk) {
+            $imported += DB::transaction(function () use ($chunk, $companyIds): int {
+                $count = 0;
+
+                foreach ($chunk as $row) {
+                    $name = $this->blankToNull($row['name'] ?? null);
+                    if ($name === null) {
+                        continue;
+                    }
+
+                    $deleted = ($row['is_deleted'] ?? '0') === '1';
+                    $companyId = (int) ($row['company_id'] ?? 0);
+                    $now = now();
+
+                    DB::table('clients')->updateOrInsert(
+                        ['id' => (int) $row['id']],
+                        [
+                            'company_id' => $companyIds->has($companyId) ? $companyId : null,
+                            'name' => $name,
+                            'phone' => $this->blankToNull($row['phone'] ?? null),
+                            'email' => $this->blankToNull($row['email'] ?? null),
+                            'address' => $this->blankToNull($row['address'] ?? null),
+                            'is_active' => ! $deleted,
+                            'created_at' => $now,
+                            'updated_at' => $now,
+                            'deleted_at' => $deleted ? $now : null,
+                        ],
+                    );
+                    $count++;
                 }
 
-                $deleted = ($row['is_deleted'] ?? '0') === '1';
-                $companyId = (int) ($row['company_id'] ?? 0);
-                $now = now();
+                return $count;
+            });
 
-                DB::table('clients')->updateOrInsert(
-                    ['id' => (int) $row['id']],
-                    [
-                        'company_id' => $companyIds->has($companyId) ? $companyId : null,
-                        'name' => $name,
-                        'phone' => $this->blankToNull($row['phone'] ?? null),
-                        'email' => $this->blankToNull($row['email'] ?? null),
-                        'address' => $this->blankToNull($row['address'] ?? null),
-                        'is_active' => ! $deleted,
-                        'created_at' => $now,
-                        'updated_at' => $now,
-                        'deleted_at' => $deleted ? $now : null,
-                    ],
-                );
-                $imported++;
-            }
+            $this->info("Clients written: {$imported}");
+        }
 
-            DB::statement(
-                "SELECT setval(pg_get_serial_sequence('clients', 'id'), COALESCE((SELECT MAX(id) FROM clients), 1))",
-            );
-        });
+        DB::statement(
+            "SELECT setval(pg_get_serial_sequence('clients', 'id'), COALESCE((SELECT MAX(id) FROM clients), 1))",
+        );
 
         return $imported;
     }
