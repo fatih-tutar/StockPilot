@@ -139,7 +139,7 @@ const menus = computed(() => {
     <div>
         <div class="min-h-screen bg-gray-100">
             <nav class="border-b border-gray-100 bg-white print:hidden">
-                <div class="px-4 sm:px-6 lg:px-8">
+                <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
                     <div class="flex h-16 items-stretch justify-between gap-4">
                         <div class="flex min-w-0 flex-1 items-stretch gap-6">
                             <div class="flex shrink-0 items-center">
