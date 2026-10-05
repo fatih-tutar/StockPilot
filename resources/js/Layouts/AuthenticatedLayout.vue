@@ -34,6 +34,14 @@ const canViewFactories = computed(() => {
     );
 });
 
+const canViewFactoryOrders = computed(() => {
+    const permissions = page.props.auth?.user?.permissions || [];
+    return (
+        permissions.includes('factory_orders.view') ||
+        permissions.includes('factory_orders.manage')
+    );
+});
+
 const canViewVehicles = computed(() => {
     const permissions = page.props.auth?.user?.permissions || [];
     return (
@@ -143,6 +151,13 @@ const canViewShipments = computed(() => {
                                     :active="route().current('factories.*')"
                                 >
                                     Fabrikalar
+                                </NavLink>
+                                <NavLink
+                                    v-if="canViewFactoryOrders"
+                                    :href="route('factory-orders.index')"
+                                    :active="route().current('factory-orders.*') || route().current('factory-order-forms.*')"
+                                >
+                                    Fabrika siparişleri
                                 </NavLink>
                                 <NavLink
                                     v-if="canViewVehicles"
@@ -323,6 +338,13 @@ const canViewShipments = computed(() => {
                             :active="route().current('factories.*')"
                         >
                             Fabrikalar
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            v-if="canViewFactoryOrders"
+                            :href="route('factory-orders.index')"
+                            :active="route().current('factory-orders.*') || route().current('factory-order-forms.*')"
+                        >
+                            Fabrika siparişleri
                         </ResponsiveNavLink>
                         <ResponsiveNavLink
                             v-if="canViewVehicles"

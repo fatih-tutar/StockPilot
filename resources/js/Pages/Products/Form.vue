@@ -18,6 +18,11 @@ const props = defineProps({
 
 const page = usePage();
 const flashSuccess = computed(() => page.props.flash?.success);
+const canOrder = computed(() => {
+    const permissions = page.props.auth?.user?.permissions || [];
+
+    return permissions.includes('factory_orders.manage');
+});
 const flashError = computed(() => page.props.flash?.error);
 const isEdit = computed(() => !!props.product?.id);
 
@@ -94,12 +99,21 @@ const destroyProduct = () => {
                 <h2 class="text-xl font-semibold leading-tight text-gray-800">
                     {{ isEdit ? product.name : 'Yeni ürün' }}
                 </h2>
-                <Link
-                    :href="route('products.index')"
-                    class="text-sm text-gray-600 hover:text-gray-900"
-                >
-                    Ürünlere dön
-                </Link>
+                <div class="flex items-center gap-4">
+                    <Link
+                        v-if="isEdit && canOrder"
+                        :href="route('factory-orders.create', { product_id: product.id })"
+                        class="text-sm text-gray-600 hover:text-gray-900"
+                    >
+                        Fabrika siparişi
+                    </Link>
+                    <Link
+                        :href="route('products.index')"
+                        class="text-sm text-gray-600 hover:text-gray-900"
+                    >
+                        Ürünlere dön
+                    </Link>
+                </div>
             </div>
         </template>
 

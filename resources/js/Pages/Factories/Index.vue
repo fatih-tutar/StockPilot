@@ -13,6 +13,14 @@ const props = defineProps({
 
 const page = usePage();
 const flashSuccess = computed(() => page.props.flash?.success);
+const canViewFactoryOrders = computed(() => {
+    const permissions = page.props.auth?.user?.permissions || [];
+
+    return (
+        permissions.includes('factory_orders.view')
+        || permissions.includes('factory_orders.manage')
+    );
+});
 const flashError = computed(() => page.props.flash?.error);
 const search = ref(props.filters.search || '');
 
@@ -122,6 +130,13 @@ const labor = (value) => {
                                     </span>
                                 </td>
                                 <td class="px-4 py-3 text-right">
+                                    <Link
+                                        v-if="canViewFactoryOrders"
+                                        :href="route('factory-orders.index', { factory_id: factory.id })"
+                                        class="mr-3 text-indigo-600 hover:text-indigo-800"
+                                    >
+                                        Siparişler
+                                    </Link>
                                     <Link
                                         :href="route('factories.edit', factory.id)"
                                         class="text-indigo-600 hover:text-indigo-800"

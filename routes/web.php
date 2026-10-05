@@ -6,6 +6,8 @@ use App\Http\Controllers\CustomerVisitController;
 use App\Http\Controllers\CustomOrderController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FactoryController;
+use App\Http\Controllers\FactoryOrderController;
+use App\Http\Controllers\FactoryOrderFormController;
 use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
@@ -46,6 +48,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('clients', ClientController::class)->except(['show']);
 
     Route::resource('factories', FactoryController::class)->except(['show']);
+
+    Route::post('factory-orders/{factory_order}/receive', [FactoryOrderController::class, 'receive'])
+        ->name('factory-orders.receive');
+    Route::resource('factory-orders', FactoryOrderController::class)->except(['show']);
+    Route::resource('factory-order-forms', FactoryOrderFormController::class)->only(['index', 'store', 'show', 'destroy']);
 
     Route::get('vehicles/{vehicle}/documents/{medium}', [VehicleController::class, 'downloadDocument'])
         ->name('vehicles.documents.download');

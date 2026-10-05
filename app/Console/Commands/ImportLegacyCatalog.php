@@ -26,7 +26,7 @@ use Illuminate\Support\Str;
 
 class ImportLegacyCatalog extends Command
 {
-    protected $signature = 'stockpilot:import-legacy {path : Directory with the legacy CSV exports} {--only= : Import one dataset: factories, vehicles, custom-orders, clients, visits, jobs, organizations, or users}';
+    protected $signature = 'stockpilot:import-legacy {path : Directory with the legacy CSV exports} {--only= : Import one dataset: factories, vehicles, custom-orders, clients, visits, jobs, organizations, users, or factory-orders}';
 
     protected $description = 'Import companies, categories, column layout, products, and factories from local CSV exports';
 
@@ -64,6 +64,10 @@ class ImportLegacyCatalog extends Command
 
         if ($this->option('only') === 'users') {
             return $this->importUsersOnly($path);
+        }
+
+        if ($this->option('only') === 'factory-orders') {
+            return $this->importFactoryOrdersOnly($path);
         }
 
         foreach (['companies.csv', 'categories.csv', 'category_columns_definitions.csv', 'category_columns.csv', 'products.csv'] as $file) {
@@ -763,6 +767,269 @@ class ImportLegacyCatalog extends Command
         );
     }
 
+    private function importFactoryOrdersOnly(string $path): int
+    {
+        $ordersFile = $path.'/siparis.csv';
+        $formsFile = $path.'/siparisformlari.csv';
+
+        if (! is_file($ordersFile) || ! is_file($formsFile)) {
+            $this->error("Missing siparis.csv or siparisformlari.csv in {$path}");
+
+            return self::FAILURE;
+        }
+
+        $result = $this->insertFactoryOrders($this->csv($formsFile), $this->csv($ordersFile));
+        $this->info("Imported {$result['forms']} factory order forms and {$result['orders']} factory orders.");
+
+        if ($result['unmatched'] > 0) {
+            $this->warn("{$result['unmatched']} orders have no single matching user for the preparer; that link was left empty.");
+        }
+
+        if ($result['ambiguous'] > 0) {
+            $this->warn("{$result['ambiguous']} orders match more than one user; that link was left empty.");
+        }
+
+        if ($result['skipped_factory'] > 0) {
+            $this->warn("Skipped {$result['skipped_factory']} rows whose factory is not in the database.");
+        }
+
+        if ($result['duplicate_form_links'] > 0) {
+            $this->warn("{$result['duplicate_form_links']} order lines were listed on more than one form; the earliest form was kept.");
+        }
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * @param  array<int, array<string, string|null>>  $forms
+     * @param  array<int, array<string, string|null>>  $orders
+     * @return array{forms: int, orders: int, unmatched: int, ambiguous: int, skipped_factory: int, duplicate_form_links: int}
+     */
+    private function insertFactoryOrders(array $forms, array $orders): array
+    {
+        $factoryIds = DB::table('factories')->pluck('id')->flip();
+        $productIds = DB::table('products')->pluck('id')->flip();
+        $companyIds = DB::table('companies')->pluck('id')->flip();
+        $existingForms = DB::table('factory_order_forms')->pluck('id')->flip();
+        $existingOrders = DB::table('factory_orders')->pluck('id')->flip();
+        $usersByName = [];
+        $ambiguousNames = [];
+
+        foreach (DB::table('users')->get(['id', 'name']) as $user) {
+            $key = $this->personKey((string) $user->name);
+            if ($key === '') {
+                continue;
+            }
+
+            if (isset($ambiguousNames[$key])) {
+                continue;
+            }
+
+            if (isset($usersByName[$key])) {
+                unset($usersByName[$key]);
+                $ambiguousNames[$key] = true;
+
+                continue;
+            }
+
+            $usersByName[$key] = (int) $user->id;
+        }
+
+        $now = now();
+        $formRows = [];
+        $newFormIds = [];
+        $skippedFactory = 0;
+
+        foreach ($forms as $form) {
+            $id = (int) $form['formid'];
+            $factoryId = (int) $form['fabrikaid'];
+
+            if ($id === 0 || isset($existingForms[$id])) {
+                continue;
+            }
+
+            if (! isset($factoryIds[$factoryId])) {
+                $skippedFactory++;
+
+                continue;
+            }
+
+            $createdAt = $this->unixTimestamp($form['saniye']) ?? $now;
+            $companyId = (int) $form['sirketid'];
+            $formRows[] = [
+                'id' => $id,
+                'company_id' => isset($companyIds[$companyId]) ? $companyId : null,
+                'factory_id' => $factoryId,
+                'prepared_by_user_id' => null,
+                'contact_name' => null,
+                'created_at' => $createdAt,
+                'updated_at' => $createdAt,
+                'deleted_at' => ((string) ($form['silik'] ?? '0')) === '1' ? $createdAt : null,
+            ];
+            $newFormIds[$id] = true;
+            $existingForms[$id] = true;
+        }
+
+        foreach (array_chunk($formRows, 400) as $chunk) {
+            DB::table('factory_order_forms')->insert($chunk);
+        }
+
+        $orderRows = [];
+        $unmatched = 0;
+        $ambiguous = 0;
+        $orderPreparer = [];
+
+        foreach ($orders as $order) {
+            $id = (int) $order['siparis_id'];
+            $factoryId = (int) $order['urun_fabrika_id'];
+
+            if ($id === 0 || isset($existingOrders[$id])) {
+                continue;
+            }
+
+            if (! isset($factoryIds[$factoryId])) {
+                $skippedFactory++;
+
+                continue;
+            }
+
+            $createdAt = $this->unixTimestamp($order['siparissaniye']) ?? $now;
+            $dueOn = $this->unixTimestamp($order['terminsaniye']);
+            $companyId = (int) $order['sirketid'];
+            $productId = (int) $order['urun_id'];
+            $preparerKey = $this->personKey((string) ($order['hazirlayankisi'] ?? ''));
+            $preparerId = $usersByName[$preparerKey] ?? null;
+
+            if ($preparerKey !== '' && $preparerId === null) {
+                if (isset($ambiguousNames[$preparerKey])) {
+                    $ambiguous++;
+                } else {
+                    $unmatched++;
+                }
+            }
+
+            $orderRows[] = [
+                'id' => $id,
+                'company_id' => isset($companyIds[$companyId]) ? $companyId : null,
+                'factory_id' => $factoryId,
+                'product_id' => isset($productIds[$productId]) ? $productId : null,
+                'factory_order_form_id' => null,
+                'prepared_by_user_id' => $preparerId,
+                'product_name' => $this->blankToNull($order['urun_adi']) ?? 'Ürün',
+                'contact_name' => $this->blankToNull($order['ilgilikisi']),
+                'quantity' => max(0, (int) $order['urun_siparis_aded']),
+                'length' => $this->blankToNull($order['siparisboy']),
+                'pallet_count' => max(0, (int) ($order['palet'] ?? 0)),
+                'due_on' => $dueOn?->toDateString(),
+                'status' => ((string) $order['taslak']) === '1' ? 'open' : 'received',
+                'created_at' => $createdAt,
+                'updated_at' => $createdAt,
+                'deleted_at' => ((string) ($order['silik'] ?? '0')) === '1' ? $createdAt : null,
+            ];
+            $orderPreparer[$id] = [
+                'prepared_by_user_id' => $preparerId,
+                'contact_name' => $this->blankToNull($order['ilgilikisi']),
+            ];
+            $existingOrders[$id] = true;
+        }
+
+        foreach (array_chunk($orderRows, 400) as $chunk) {
+            DB::table('factory_orders')->insert($chunk);
+        }
+
+        usort($forms, fn (array $left, array $right): int => ((int) $left['formid']) <=> ((int) $right['formid']));
+
+        $assignment = [];
+        $duplicateLinks = 0;
+
+        foreach ($forms as $form) {
+            $formId = (int) $form['formid'];
+            if (! isset($existingForms[$formId])) {
+                continue;
+            }
+
+            foreach (explode(',', (string) ($form['siparisler'] ?? '')) as $part) {
+                $orderId = (int) trim($part);
+                if ($orderId === 0 || ! isset($existingOrders[$orderId])) {
+                    continue;
+                }
+
+                if (isset($assignment[$orderId])) {
+                    $duplicateLinks++;
+
+                    continue;
+                }
+
+                $assignment[$orderId] = $formId;
+            }
+        }
+
+        $byForm = [];
+        foreach ($assignment as $orderId => $formId) {
+            $byForm[$formId][] = $orderId;
+        }
+
+        foreach ($byForm as $formId => $orderIds) {
+            foreach (array_chunk($orderIds, 400) as $chunk) {
+                DB::table('factory_orders')
+                    ->whereIn('id', $chunk)
+                    ->whereNull('factory_order_form_id')
+                    ->update(['factory_order_form_id' => $formId]);
+            }
+        }
+
+        $headers = [];
+        foreach ($assignment as $orderId => $formId) {
+            if (! isset($newFormIds[$formId]) || ! isset($orderPreparer[$orderId])) {
+                continue;
+            }
+
+            if (! isset($headers[$formId]) || $orderId > $headers[$formId]['id']) {
+                $headers[$formId] = [
+                    'id' => $orderId,
+                    'prepared_by_user_id' => $orderPreparer[$orderId]['prepared_by_user_id'],
+                    'contact_name' => $orderPreparer[$orderId]['contact_name'],
+                ];
+            }
+        }
+
+        foreach ($headers as $formId => $header) {
+            DB::table('factory_order_forms')->where('id', $formId)->update([
+                'prepared_by_user_id' => $header['prepared_by_user_id'],
+                'contact_name' => $header['contact_name'],
+            ]);
+        }
+
+        $this->syncSequence('factory_order_forms');
+        $this->syncSequence('factory_orders');
+
+        return [
+            'forms' => count($formRows),
+            'orders' => count($orderRows),
+            'unmatched' => $unmatched,
+            'ambiguous' => $ambiguous,
+            'skipped_factory' => $skippedFactory,
+            'duplicate_form_links' => $duplicateLinks,
+        ];
+    }
+
+    private function personKey(string $name): string
+    {
+        $name = preg_replace('/\s+/u', ' ', trim($name)) ?? '';
+
+        return mb_strtoupper($name, 'UTF-8');
+    }
+
+    private function unixTimestamp(?string $value): ?Carbon
+    {
+        $value = trim((string) $value);
+        if ($value === '' || $value === '0' || ! ctype_digit($value)) {
+            return null;
+        }
+
+        return Carbon::createFromTimestamp((int) $value);
+    }
+
     private function syncSequence(string $table): void
     {
         if (DB::getDriverName() !== 'pgsql') {
@@ -1118,7 +1385,7 @@ class ImportLegacyCatalog extends Command
             return [];
         }
 
-        $header = fgetcsv($handle);
+        $header = fgetcsv($handle, null, ',', '"', '\\');
         $rows = [];
         if ($header === false) {
             fclose($handle);
@@ -1126,7 +1393,7 @@ class ImportLegacyCatalog extends Command
             return [];
         }
 
-        while (($line = fgetcsv($handle)) !== false) {
+        while (($line = fgetcsv($handle, null, ',', '"', '\\')) !== false) {
             $rows[] = array_combine($header, array_pad($line, count($header), null));
         }
 
