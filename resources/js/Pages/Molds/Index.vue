@@ -66,10 +66,10 @@ const destroyMold = (mold) => {
                 <h2 class="text-xl font-semibold leading-tight text-gray-800">
                     {{ archived ? 'Kalıp arşivi' : 'Kalıplar' }}
                 </h2>
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-4">
                     <Link
                         :href="archived ? route('molds.index') : route('molds.archived')"
-                        class="text-sm text-gray-600 hover:text-gray-900"
+                        class="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-widest text-gray-700 transition hover:bg-gray-50"
                     >
                         {{ archived ? 'Açık kalıplar' : 'Arşiv' }}
                     </Link>
