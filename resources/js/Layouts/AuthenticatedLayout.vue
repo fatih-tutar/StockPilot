@@ -58,6 +58,11 @@ const canViewWorkTasks = computed(() => {
     );
 });
 
+const canViewStaff = computed(() => {
+    const permissions = page.props.auth?.user?.permissions || [];
+    return permissions.includes('users.manage');
+});
+
 const canViewOrganization = computed(() => {
     const permissions = page.props.auth?.user?.permissions || [];
     return (
@@ -166,6 +171,13 @@ const canViewShipments = computed(() => {
                                     :active="route().current('work-tasks.*')"
                                 >
                                     İşler
+                                </NavLink>
+                                <NavLink
+                                    v-if="canViewStaff"
+                                    :href="route('staff.index')"
+                                    :active="route().current('staff.*')"
+                                >
+                                    Personel
                                 </NavLink>
                                 <NavLink
                                     v-if="canViewOrganization"
@@ -339,6 +351,13 @@ const canViewShipments = computed(() => {
                             :active="route().current('work-tasks.*')"
                         >
                             İşler
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            v-if="canViewStaff"
+                            :href="route('staff.index')"
+                            :active="route().current('staff.*')"
+                        >
+                            Personel
                         </ResponsiveNavLink>
                         <ResponsiveNavLink
                             v-if="canViewOrganization"

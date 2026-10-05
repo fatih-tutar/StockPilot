@@ -15,6 +15,7 @@ const form = useForm({
         position: member.position,
         name: member.name ?? '',
         title: member.title ?? '',
+        user_name: member.user_name ?? null,
         photo: null,
         photo_available: member.photo_available,
     })),

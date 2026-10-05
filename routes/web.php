@@ -11,6 +11,7 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\QuoteController;
 use App\Http\Controllers\ShipmentController;
+use App\Http\Controllers\StaffController;
 use App\Http\Controllers\VehicleController;
 use App\Http\Controllers\WorkTaskController;
 use Illuminate\Support\Facades\Route;
@@ -63,6 +64,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('customer-visits', CustomerVisitController::class)->except(['show']);
 
     Route::resource('work-tasks', WorkTaskController::class)->only(['index', 'store', 'update', 'destroy']);
+
+    Route::get('staff/{staff}/documents/{medium}', [StaffController::class, 'downloadDocument'])
+        ->name('staff.documents.download');
+    Route::resource('staff', StaffController::class)->except(['show']);
 
     Route::get('organization/{organization_member}/photo', [OrganizationController::class, 'photo'])
         ->name('organization.photo');

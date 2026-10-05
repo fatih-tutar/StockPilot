@@ -4,23 +4,29 @@ namespace App\Console\Commands;
 
 use App\Enums\CustomOrderStatus;
 use App\Enums\DeliveryMethod;
+use App\Enums\StaffDocument;
+use App\Enums\UserAccessLevel;
 use App\Enums\VehicleDocument;
 use App\Models\Category;
 use App\Models\CategoryColumnDefinition;
 use App\Models\OrganizationMember;
 use App\Models\Product;
+use App\Models\User;
 use App\Models\Vehicle;
+use App\Support\StaffAccess;
 use Carbon\Exceptions\InvalidFormatException;
 use Database\Seeders\CategoryColumnDefinitionSeeder;
 use Illuminate\Console\Command;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class ImportLegacyCatalog extends Command
 {
-    protected $signature = 'stockpilot:import-legacy {path : Directory with the legacy CSV exports} {--only= : Import one dataset: factories, vehicles, custom-orders, clients, visits, jobs, or organizations}';
+    protected $signature = 'stockpilot:import-legacy {path : Directory with the legacy CSV exports} {--only= : Import one dataset: factories, vehicles, custom-orders, clients, visits, jobs, organizations, or users}';
 
     protected $description = 'Import companies, categories, column layout, products, and factories from local CSV exports';
 
@@ -54,6 +60,10 @@ class ImportLegacyCatalog extends Command
 
         if ($this->option('only') === 'organizations') {
             return $this->importOrganizationsOnly($path);
+        }
+
+        if ($this->option('only') === 'users') {
+            return $this->importUsersOnly($path);
         }
 
         foreach (['companies.csv', 'categories.csv', 'category_columns_definitions.csv', 'category_columns.csv', 'products.csv'] as $file) {
@@ -236,6 +246,10 @@ class ImportLegacyCatalog extends Command
 
             if (is_file($path.'/jobs.csv') && Schema::hasTable('work_tasks')) {
                 $this->insertJobs($this->csv($path.'/jobs.csv'));
+            }
+
+            if (is_file($path.'/users.csv') && Schema::hasTable('users')) {
+                $this->insertUsers($this->csv($path.'/users.csv'));
             }
 
             if (is_file($path.'/organizations.csv') && Schema::hasTable('organization_members')) {
@@ -533,6 +547,224 @@ class ImportLegacyCatalog extends Command
         return $count;
     }
 
+    private function importUsersOnly(string $path): int
+    {
+        $file = $path.'/users.csv';
+        if (! is_file($file)) {
+            $this->error("Missing users.csv in {$path}");
+
+            return self::FAILURE;
+        }
+
+        $count = $this->insertUsers($this->csv($file));
+        $this->info("Imported {$count} users.");
+
+        $organizations = $path.'/organizations.csv';
+        if (is_file($organizations) && Schema::hasTable('organization_members')) {
+            $this->insertOrganizations($this->csv($organizations));
+            $linked = DB::table('organization_members')->whereNotNull('user_id')->count();
+            $this->info("Organization cards linked to a user: {$linked}.");
+        }
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * @param  array<int, array<string, string|null>>  $rows
+     */
+    private function insertUsers(array $rows): int
+    {
+        $companyIds = DB::table('companies')->pluck('id')->flip();
+        $reservedIds = [];
+        foreach ($rows as $row) {
+            $id = (int) ($row['id'] ?? 0);
+            if ($id > 0) {
+                $reservedIds[] = $id;
+            }
+        }
+
+        $count = 0;
+
+        DB::transaction(function () use ($rows, $companyIds, $reservedIds, &$count): void {
+            $this->parkDemoAccounts($reservedIds);
+
+            $emails = DB::table('users')->pluck('email', 'id');
+
+            foreach ($rows as $row) {
+                $id = (int) ($row['id'] ?? 0);
+                if ($id <= 0) {
+                    continue;
+                }
+
+                $existing = DB::table('users')->where('id', $id)->first();
+                if ($existing !== null && str_ends_with((string) $existing->email, '@stockpilot.test')) {
+                    $this->warn("Skipped user {$id}: that id belongs to a demo account.");
+
+                    continue;
+                }
+
+                $email = $this->blankToNull($row['email'] ?? null);
+                $ownerId = $emails->search($email);
+                if ($email !== null && $ownerId !== false && (int) $ownerId !== $id) {
+                    $this->warn("User {$id} email is already used, stored without an email.");
+                    $email = null;
+                }
+
+                $companyId = (int) ($row['company_id'] ?? 0);
+                $now = now();
+                $deleted = ($row['is_deleted'] ?? '0') === '1';
+
+                $payload = [
+                    'company_id' => $companyIds->has($companyId) ? $companyId : null,
+                    'name' => $this->blankToNull($row['name'] ?? null) ?? 'Personel',
+                    'email' => $email,
+                    'phone' => $this->blankToNull($row['phone'] ?? null),
+                    'phone_2' => $this->blankToNull($row['phone_2'] ?? null),
+                    'address' => $this->blankToNull($row['address'] ?? null),
+                    'title' => $this->blankToNull($row['title'] ?? null),
+                    'hired_on' => $this->legacyDay($row['hire_date'] ?? null),
+                    'access_level' => UserAccessLevel::fromLegacy((int) ($row['type'] ?? 0))->value,
+                    'access_flags' => json_encode(StaffAccess::fromLegacy($row['permissions'] ?? null)),
+                    'is_active' => ($row['is_passive'] ?? '0') !== '1',
+                    'deleted_at' => $deleted ? $now : null,
+                    'updated_at' => $now,
+                ];
+
+                if ($existing === null) {
+                    $payload['password'] = Hash::make(Str::password(40));
+                    $payload['created_at'] = $now;
+                }
+
+                DB::table('users')->updateOrInsert(['id' => $id], $payload);
+
+                foreach (StaffDocument::cases() as $document) {
+                    $this->rememberStaffFile($id, $document, $row[$document->value] ?? null);
+                }
+
+                $emails[$id] = $email;
+                $count++;
+            }
+
+            $this->syncSequence('users');
+        });
+
+        return $count;
+    }
+
+    /**
+     * Demo logins occupy low ids. Move them so legacy staff ids can be preserved.
+     *
+     * @param  list<int>  $reservedIds
+     */
+    private function parkDemoAccounts(array $reservedIds): void
+    {
+        if ($reservedIds === []) {
+            return;
+        }
+
+        $demos = DB::table('users')
+            ->where('email', 'like', '%@stockpilot.test')
+            ->whereIn('id', $reservedIds)
+            ->orderBy('id')
+            ->get();
+
+        if ($demos->isEmpty()) {
+            return;
+        }
+
+        $nextId = max($reservedIds);
+        $currentMax = (int) DB::table('users')->max('id');
+        if ($currentMax > $nextId) {
+            $nextId = $currentMax;
+        }
+
+        foreach ($demos as $demo) {
+            $oldId = (int) $demo->id;
+            $nextId++;
+            $email = $demo->email;
+
+            DB::table('users')->where('id', $oldId)->update(['email' => null]);
+
+            $copy = (array) $demo;
+            $copy['id'] = $nextId;
+            $copy['email'] = $email;
+            DB::table('users')->insert($copy);
+
+            foreach (['quotes', 'shipments', 'stock_movements', 'custom_orders', 'organization_members'] as $table) {
+                if (! Schema::hasTable($table) || ! Schema::hasColumn($table, 'user_id')) {
+                    continue;
+                }
+
+                DB::table($table)->where('user_id', $oldId)->update(['user_id' => $nextId]);
+            }
+
+            foreach (['model_has_roles', 'model_has_permissions'] as $table) {
+                if (! Schema::hasTable($table)) {
+                    continue;
+                }
+
+                DB::table($table)
+                    ->where('model_type', User::class)
+                    ->where('model_id', $oldId)
+                    ->update(['model_id' => $nextId]);
+            }
+
+            if (Schema::hasTable('sessions')) {
+                DB::table('sessions')->where('user_id', $oldId)->delete();
+            }
+
+            DB::table('users')->where('id', $oldId)->delete();
+            $this->line("Moved a demo account off staff id {$oldId} to {$nextId}.");
+        }
+    }
+
+    private function rememberStaffFile(int $userId, StaffDocument $document, ?string $fileName): void
+    {
+        $fileName = $this->blankToNull($fileName);
+        if ($fileName === null || ! Schema::hasTable('media')) {
+            return;
+        }
+
+        $existing = DB::table('media')
+            ->where('model_type', User::class)
+            ->where('model_id', $userId)
+            ->where('collection', $document->value)
+            ->first();
+
+        if ($existing !== null && $existing->path !== null) {
+            return;
+        }
+
+        $now = now();
+        DB::table('media')->updateOrInsert(
+            [
+                'model_type' => User::class,
+                'model_id' => $userId,
+                'collection' => $document->value,
+            ],
+            [
+                'disk' => 'local',
+                'path' => null,
+                'file_name' => $fileName,
+                'mime_type' => null,
+                'size' => null,
+                'created_at' => $existing->created_at ?? $now,
+                'updated_at' => $now,
+            ],
+        );
+    }
+
+    private function syncSequence(string $table): void
+    {
+        if (DB::getDriverName() !== 'pgsql') {
+            return;
+        }
+
+        DB::statement(
+            "SELECT setval(pg_get_serial_sequence('{$table}', 'id'), COALESCE((SELECT MAX(id) FROM {$table}), 1))",
+        );
+    }
+
     private function importOrganizationsOnly(string $path): int
     {
         $file = $path.'/organizations.csv';
@@ -584,9 +816,7 @@ class ImportLegacyCatalog extends Command
                 $count++;
             }
 
-            DB::statement(
-                "SELECT setval(pg_get_serial_sequence('organization_members', 'id'), COALESCE((SELECT MAX(id) FROM organization_members), 1))",
-            );
+            $this->syncSequence('organization_members');
         });
 
         return $count;

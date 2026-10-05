@@ -58,11 +58,17 @@ const photoSrc = () => {
                     v-model="person.name"
                     rows="2"
                     class="w-full resize-none border-0 bg-transparent p-0 text-center text-[11px] font-semibold leading-tight text-white placeholder:text-slate-300 focus:ring-0"
-                    placeholder="Ad"
+                    :placeholder="person.user_name || 'Ad'"
                 />
-                <span v-else class="w-full whitespace-normal">{{ person?.name || '—' }}</span>
+                <span v-else class="w-full whitespace-normal">{{ person?.name || person?.user_name || '—' }}</span>
             </div>
         </div>
+        <p
+            v-if="person?.user_name && person.user_name !== person.name"
+            class="mt-1 text-center text-[10px] leading-tight text-slate-600"
+        >
+            {{ person.user_name }}
+        </p>
         <input
             v-if="canManage && person"
             type="file"

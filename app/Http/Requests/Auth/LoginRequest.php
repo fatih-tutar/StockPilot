@@ -50,6 +50,15 @@ class LoginRequest extends FormRequest
             ]);
         }
 
+        if (Auth::user()?->is_active === false) {
+            Auth::logout();
+            RateLimiter::hit($this->throttleKey());
+
+            throw ValidationException::withMessages([
+                'email' => 'Bu hesap pasif.',
+            ]);
+        }
+
         RateLimiter::clear($this->throttleKey());
     }
 

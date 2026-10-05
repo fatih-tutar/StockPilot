@@ -19,7 +19,7 @@ class OrganizationController extends Controller
         $this->authorize('viewAny', OrganizationMember::class);
 
         $members = OrganizationMember::query()
-            ->with('media')
+            ->with(['media', 'user'])
             ->orderBy('position')
             ->get()
             ->map(fn (OrganizationMember $member) => $this->payload($member))
@@ -84,7 +84,7 @@ class OrganizationController extends Controller
     }
 
     /**
-     * @return array{id: int, position: int, name: string|null, title: string|null, photo_available: bool}
+     * @return array{id: int, position: int, name: string|null, title: string|null, user_name: string|null, photo_available: bool}
      */
     private function payload(OrganizationMember $member): array
     {
@@ -93,6 +93,7 @@ class OrganizationController extends Controller
             'position' => $member->position,
             'name' => $member->name,
             'title' => $member->title,
+            'user_name' => $member->user?->name,
             'photo_available' => $member->photo()?->isStored() ?? false,
         ];
     }
