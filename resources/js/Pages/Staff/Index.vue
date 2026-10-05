@@ -87,11 +87,14 @@ const formatDate = (value) => {
                                 <th class="px-4 py-3">Düzey</th>
                                 <th class="px-4 py-3">İşe giriş</th>
                                 <th class="px-4 py-3">Durum</th>
+                                <th class="px-4 py-3">
+                                    <span class="sr-only">İşlem</span>
+                                </th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
                             <tr v-if="staff.data.length === 0">
-                                <td colspan="6" class="px-4 py-6 text-gray-500">
+                                <td colspan="7" class="px-4 py-6 text-gray-500">
                                     Kayıt yok.
                                 </td>
                             </tr>
@@ -127,6 +130,14 @@ const formatDate = (value) => {
                                     >
                                         {{ person.is_active ? 'Aktif' : 'Pasif' }}
                                     </span>
+                                </td>
+                                <td class="px-4 py-3 text-right">
+                                    <Link
+                                        :href="route('staff.edit', person.id)"
+                                        class="text-indigo-600 hover:text-indigo-800"
+                                    >
+                                        Düzenle
+                                    </Link>
                                 </td>
                             </tr>
                         </tbody>

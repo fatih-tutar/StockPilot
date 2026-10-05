@@ -43,7 +43,7 @@ class StaffTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_empty_staff_form_asks_for_name_level_and_password(): void
+    public function test_empty_staff_form_asks_for_name_email_level_and_password(): void
     {
         $user = $this->userWithPermission('users.manage');
 
@@ -51,6 +51,7 @@ class StaffTest extends TestCase
             ->post(route('staff.store'), [])
             ->assertSessionHasErrors([
                 'name' => 'Ad zorunludur.',
+                'email' => 'E-posta zorunludur.',
                 'access_level' => 'Yetki düzeyi zorunludur.',
                 'password' => 'Şifre zorunludur.',
             ]);
@@ -128,7 +129,8 @@ class StaffTest extends TestCase
         fputcsv($users, ['id', 'name', 'email', 'phone', 'phone_2', 'address', 'title', 'password', 'company_id', 'type', 'permissions', 'hire_date', 'identity_card', 'application_form', 'residence_certificate', 'health_report', 'is_passive', 'is_deleted', 'photo']);
         fputcsv($users, ['1', 'Deneme Personel', 'deneme@example.com', '555', '5552', 'Adres', 'Usta', $legacyPassword, (string) $company->id, '0', '1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0', '01-06-2019', 'kimlik.pdf', '', '', '', '0', '0', 'portre.jpg']);
         fputcsv($users, ['3', 'Bos Eposta', '', '', '', '', '', str_repeat('b', 32), (string) $company->id, '1', '0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0', '', '', '', '', '', '0', '0', '']);
-        fputcsv($users, ['9', 'Silinen', '', '', '', '', '', str_repeat('c', 32), (string) $company->id, '2', '0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0', '', '', '', '', '', '0', '1', '']);
+        fputcsv($users, ['4', 'Ayni Eposta', 'deneme@example.com', '', '', '', '', str_repeat('d', 32), (string) $company->id, '0', '0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0', '', '', '', '', '', '0', '0', '']);
+        fputcsv($users, ['9', 'Silinen', 'silinen@example.com', '', '', '', '', str_repeat('c', 32), (string) $company->id, '2', '0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0', '', '', '', '', '', '0', '1', '']);
         fclose($users);
         $organizations = fopen($directory.'/organizations.csv', 'wb');
         fputcsv($organizations, ['id', 'name', 'title', 'user_id', 'photo', 'created_at']);
@@ -154,9 +156,8 @@ class StaffTest extends TestCase
         $this->assertFalse(Hash::check($legacyPassword, $imported->password));
         $this->assertNotNull($imported->media()->where('collection', 'photo')->whereNull('path')->first());
 
-        $blank = User::query()->find(3);
-        $this->assertNotNull($blank);
-        $this->assertNull($blank->email);
+        $this->assertNull(User::withTrashed()->find(3));
+        $this->assertNull(User::withTrashed()->find(4));
 
         $this->assertSoftDeleted('users', ['id' => 9]);
 

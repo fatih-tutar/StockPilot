@@ -163,8 +163,9 @@ const destroyStaff = () => {
                             <TextInput
                                 id="email"
                                 v-model="form.email"
-                                type="text"
+                                type="email"
                                 class="mt-1 block w-full"
+                                required
                             />
                             <InputError class="mt-2" :message="form.errors.email" />
                         </div>

@@ -604,10 +604,17 @@ class ImportLegacyCatalog extends Command
                 }
 
                 $email = $this->blankToNull($row['email'] ?? null);
+                if ($email === null) {
+                    $this->warn("Skipped user {$id}: an email address is required.");
+
+                    continue;
+                }
+
                 $ownerId = $emails->search($email);
-                if ($email !== null && $ownerId !== false && (int) $ownerId !== $id) {
-                    $this->warn("User {$id} email is already used, stored without an email.");
-                    $email = null;
+                if ($ownerId !== false && (int) $ownerId !== $id) {
+                    $this->warn("Skipped user {$id}: that email is already used.");
+
+                    continue;
                 }
 
                 $companyId = (int) ($row['company_id'] ?? 0);
@@ -683,7 +690,9 @@ class ImportLegacyCatalog extends Command
             $nextId++;
             $email = $demo->email;
 
-            DB::table('users')->where('id', $oldId)->update(['email' => null]);
+            DB::table('users')->where('id', $oldId)->update([
+                'email' => 'moved-'.$oldId.'@stockpilot.test',
+            ]);
 
             $copy = (array) $demo;
             $copy['id'] = $nextId;

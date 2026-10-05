@@ -38,7 +38,7 @@ class UpdateStaffRequest extends FormRequest
 
         return [
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['nullable', 'string', 'max:255', Rule::unique('users', 'email')->ignore($staff instanceof User ? $staff->id : null)],
+            'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users', 'email')->ignore($staff instanceof User ? $staff->id : null)],
             'phone' => ['nullable', 'string', 'max:50'],
             'phone_2' => ['nullable', 'string', 'max:50'],
             'address' => ['nullable', 'string'],
@@ -64,6 +64,8 @@ class UpdateStaffRequest extends FormRequest
     {
         return [
             'name.required' => 'Ad zorunludur.',
+            'email.required' => 'E-posta zorunludur.',
+            'email.email' => 'Geçerli bir e-posta adresi girin.',
             'access_level.required' => 'Yetki düzeyi zorunludur.',
             'password.min' => 'Şifre en az 8 karakter olmalıdır.',
             'password.confirmed' => 'Şifre tekrarı eşleşmiyor.',
