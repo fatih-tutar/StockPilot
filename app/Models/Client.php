@@ -35,6 +35,11 @@ class Client extends Model
         return $this->hasMany(CustomOrder::class)->orderByDesc('ordered_at');
     }
 
+    public function molds(): HasMany
+    {
+        return $this->hasMany(Mold::class)->orderByDesc('id');
+    }
+
     protected function casts(): array
     {
         return [

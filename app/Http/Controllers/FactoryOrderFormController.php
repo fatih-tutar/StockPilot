@@ -6,6 +6,7 @@ use App\Http\Requests\FactoryOrder\StoreFactoryOrderFormRequest;
 use App\Models\Factory;
 use App\Models\FactoryOrder;
 use App\Models\FactoryOrderForm;
+use App\Models\MoldNumber;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -94,7 +95,12 @@ class FactoryOrderFormController extends Controller
             'orders.product.category.parent:id,name',
         ]);
 
-        $lines = $factoryOrderForm->orders->values()->map(function (FactoryOrder $order, int $index) {
+        $moldNumbers = MoldNumber::query()
+            ->where('factory_id', $factoryOrderForm->factory_id)
+            ->whereIn('product_id', $factoryOrderForm->orders->pluck('product_id')->filter()->all())
+            ->pluck('number', 'product_id');
+
+        $lines = $factoryOrderForm->orders->values()->map(function (FactoryOrder $order, int $index) use ($moldNumbers) {
             $product = $order->product;
             $weight = $product?->unit_weight_kg;
             $child = $product?->category?->name;
@@ -107,6 +113,7 @@ class FactoryOrderFormController extends Controller
             return [
                 'id' => $order->id,
                 'number' => $index + 1,
+                'mold_number' => $order->product_id === null ? null : $moldNumbers->get($order->product_id),
                 'material' => $material,
                 'length' => $order->length,
                 'quantity' => $order->quantity,

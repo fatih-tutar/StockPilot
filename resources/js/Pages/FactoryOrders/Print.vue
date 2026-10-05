@@ -69,6 +69,7 @@ const printPage = () => {
                         <thead>
                             <tr class="border-b border-black text-left">
                                 <th class="py-2 pr-2">S.No</th>
+                                <th class="py-2 pr-2">Kalıp</th>
                                 <th class="py-2 pr-2">Malzemenin cinsi</th>
                                 <th class="py-2 pr-2">Boy</th>
                                 <th class="py-2 pr-2 text-right">Adet</th>
@@ -81,6 +82,7 @@ const printPage = () => {
                         <tbody>
                             <tr v-for="line in form.lines" :key="line.id" class="border-b border-gray-200">
                                 <td class="py-2 pr-2">{{ line.number }}</td>
+                                <td class="py-2 pr-2">{{ line.mold_number || '—' }}</td>
                                 <td class="py-2 pr-2">{{ line.material }}</td>
                                 <td class="py-2 pr-2">{{ line.length || '—' }}</td>
                                 <td class="py-2 pr-2 text-right">{{ line.quantity }}</td>
@@ -101,7 +103,7 @@ const printPage = () => {
                         </tbody>
                         <tfoot>
                             <tr>
-                                <td colspan="6" class="py-2 text-right font-semibold">Toplam</td>
+                                <td colspan="7" class="py-2 text-right font-semibold">Toplam</td>
                                 <td class="py-2 text-right font-semibold">{{ kilos(form.total_kg) }}</td>
                                 <td class="print:hidden" />
                             </tr>

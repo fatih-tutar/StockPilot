@@ -6,6 +6,7 @@ use App\Http\Requests\Catalog\StoreClientRequest;
 use App\Http\Requests\Catalog\UpdateClientRequest;
 use App\Models\Client;
 use App\Models\CustomOrder;
+use App\Models\Mold;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -75,6 +76,10 @@ class ClientController extends Controller
         $this->authorize('view', $client);
 
         $client->load(['customOrders.items:id,custom_order_id,product_name,due_on']);
+        $canViewMolds = $request->user()->can('viewAny', Mold::class);
+        if ($canViewMolds) {
+            $client->load(['molds.sourceFactory:id,name']);
+        }
 
         return Inertia::render('Clients/Form', [
             'client' => [
@@ -85,6 +90,15 @@ class ClientController extends Controller
                 'address' => $client->address,
                 'notes' => $client->notes,
                 'is_active' => $client->is_active,
+                'molds' => $canViewMolds
+                    ? $client->molds->map(fn (Mold $mold) => [
+                        'id' => $mold->id,
+                        'number' => $mold->number,
+                        'factory_name' => $mold->sourceFactory?->name,
+                        'due_on' => $mold->due_on?->format('d.m.Y'),
+                        'archived' => $mold->archived_at !== null,
+                    ])->all()
+                    : [],
                 'custom_orders' => $client->customOrders->map(fn (CustomOrder $order) => [
                     'id' => $order->id,
                     'status_label' => $order->status->label(),
@@ -99,6 +113,7 @@ class ClientController extends Controller
                 ])->all(),
             ],
             'canManage' => $request->user()->can('clients.manage'),
+            'canViewMolds' => $canViewMolds,
         ]);
     }
 

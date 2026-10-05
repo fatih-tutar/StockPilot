@@ -4,11 +4,13 @@ namespace App\Console\Commands;
 
 use App\Enums\CustomOrderStatus;
 use App\Enums\DeliveryMethod;
+use App\Enums\MoldDocument;
 use App\Enums\StaffDocument;
 use App\Enums\UserAccessLevel;
 use App\Enums\VehicleDocument;
 use App\Models\Category;
 use App\Models\CategoryColumnDefinition;
+use App\Models\Mold;
 use App\Models\OrganizationMember;
 use App\Models\Product;
 use App\Models\User;
@@ -26,7 +28,7 @@ use Illuminate\Support\Str;
 
 class ImportLegacyCatalog extends Command
 {
-    protected $signature = 'stockpilot:import-legacy {path : Directory with the legacy CSV exports} {--only= : Import one dataset: factories, vehicles, custom-orders, clients, visits, jobs, organizations, users, or factory-orders}';
+    protected $signature = 'stockpilot:import-legacy {path : Directory with the legacy CSV exports} {--only= : Import one dataset: factories, vehicles, custom-orders, clients, visits, jobs, organizations, users, factory-orders, or molds}';
 
     protected $description = 'Import companies, categories, column layout, products, and factories from local CSV exports';
 
@@ -68,6 +70,10 @@ class ImportLegacyCatalog extends Command
 
         if ($this->option('only') === 'factory-orders') {
             return $this->importFactoryOrdersOnly($path);
+        }
+
+        if ($this->option('only') === 'molds') {
+            return $this->importMoldsOnly($path);
         }
 
         foreach (['companies.csv', 'categories.csv', 'category_columns_definitions.csv', 'category_columns.csv', 'products.csv'] as $file) {
@@ -765,6 +771,222 @@ class ImportLegacyCatalog extends Command
                 'updated_at' => $now,
             ],
         );
+    }
+
+    private function importMoldsOnly(string $path): int
+    {
+        $moldsFile = $path.'/molds.csv';
+        $numbersFile = $path.'/mold_numbers.csv';
+
+        if (! is_file($moldsFile) || ! is_file($numbersFile)) {
+            $this->error("Missing molds.csv or mold_numbers.csv in {$path}");
+
+            return self::FAILURE;
+        }
+
+        $this->info('Reading mold files.');
+        $result = $this->insertMolds($this->csv($moldsFile), $this->csv($numbersFile));
+        $this->info("Imported {$result['molds']} molds and {$result['numbers']} mold numbers.");
+
+        if ($result['skipped_molds'] > 0) {
+            $this->warn("{$result['skipped_molds']} molds were skipped because the client or factory is missing.");
+        }
+
+        if ($result['skipped_numbers'] > 0) {
+            $this->warn("{$result['skipped_numbers']} mold numbers were skipped because the product or factory is missing, or that product already has a number at the factory.");
+        }
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * @param  array<int, array<string, string|null>>  $molds
+     * @param  array<int, array<string, string|null>>  $numbers
+     * @return array{molds: int, numbers: int, skipped_molds: int, skipped_numbers: int}
+     */
+    private function insertMolds(array $molds, array $numbers): array
+    {
+        $existingMolds = DB::table('molds')->pluck('id')->map(fn ($id) => (int) $id)->flip();
+        $clientIds = DB::table('clients')->pluck('id')->map(fn ($id) => (int) $id)->flip();
+        $factoryIds = DB::table('factories')->pluck('id')->map(fn ($id) => (int) $id)->flip();
+        $userIds = DB::table('users')->pluck('id')->map(fn ($id) => (int) $id)->flip();
+        $companyIds = DB::table('companies')->pluck('id')->map(fn ($id) => (int) $id)->flip();
+        $now = now();
+        $rows = [];
+        $files = [];
+        $skippedMolds = 0;
+        $already = 0;
+
+        foreach ($molds as $mold) {
+            $id = (int) $mold['id'];
+            $clientId = (int) $mold['client_id'];
+            $factoryId = (int) $mold['factory_id'];
+
+            if (! isset($clientIds[$clientId]) || ! isset($factoryIds[$factoryId])) {
+                $skippedMolds++;
+
+                continue;
+            }
+
+            $createdBy = (int) ($mold['created_by'] ?? 0);
+            $companyId = (int) ($mold['company_id'] ?? 0);
+            $record = [
+                'id' => $id,
+                'company_id' => isset($companyIds[$companyId]) ? $companyId : null,
+                'client_id' => $clientId,
+                'factory_id' => $factoryId,
+                'number' => $this->blankToNull($mold['number'] ?? null),
+                'client_offer_price' => $this->blankToNull($mold['client_offer_price'] ?? null),
+                'factory_offer_price' => $this->blankToNull($mold['factory_offer_price'] ?? null),
+                'due_on' => $this->plainDate($mold['due_date'] ?? null),
+                'contact_name' => $this->blankToNull($mold['contact_person'] ?? null),
+                'description' => $this->blankToNull($mold['description'] ?? null),
+                'created_by_user_id' => isset($userIds[$createdBy]) ? $createdBy : null,
+                'archived_at' => ($mold['is_archived'] ?? '0') === '1' ? $now : null,
+                'created_at' => $now,
+                'updated_at' => $now,
+                'deleted_at' => ($mold['is_deleted'] ?? '0') === '1' ? $now : null,
+            ];
+
+            if (isset($existingMolds[$id])) {
+                $already++;
+            } else {
+                $rows[] = $record;
+            }
+
+            foreach ([
+                MoldDocument::FactoryApproval->value => $mold['factory_pdf'] ?? null,
+                MoldDocument::ClientApproval->value => $mold['client_pdf'] ?? null,
+                MoldDocument::Contract->value => $mold['contract_pdf'] ?? null,
+            ] as $collection => $fileName) {
+                $fileName = $this->blankToNull($fileName);
+                if ($fileName !== null) {
+                    $files[] = [$id, $collection, $fileName];
+                }
+            }
+        }
+
+        $this->info('Molds already stored: '.$already.'. Remaining: '.count($rows).'.');
+        $written = 0;
+        foreach (array_chunk($rows, 200) as $chunk) {
+            DB::table('molds')->insert($chunk);
+            $written += count($chunk);
+            $this->info("Molds written: {$written}");
+        }
+
+        foreach ($files as [$id, $collection, $fileName]) {
+            $this->rememberMoldFile($id, $collection, $fileName);
+        }
+
+        $this->syncSequence('molds');
+
+        $existingNumbers = DB::table('mold_numbers')->pluck('id')->map(fn ($id) => (int) $id)->flip();
+        $productIds = DB::table('products')->pluck('id')->map(fn ($id) => (int) $id)->flip();
+        $pairs = [];
+        foreach (DB::table('mold_numbers')->get(['product_id', 'factory_id']) as $pair) {
+            $pairs[(int) $pair->product_id.'-'.(int) $pair->factory_id] = true;
+        }
+
+        $numberRows = [];
+        $skippedNumbers = 0;
+        $numbersAlready = 0;
+
+        foreach ($numbers as $number) {
+            $id = (int) $number['id'];
+            $productId = (int) $number['product_id'];
+            $factoryId = (int) $number['factory_id'];
+            $pair = $productId.'-'.$factoryId;
+
+            if (! isset($productIds[$productId]) || ! isset($factoryIds[$factoryId])) {
+                $skippedNumbers++;
+
+                continue;
+            }
+
+            if (isset($existingNumbers[$id])) {
+                $numbersAlready++;
+
+                continue;
+            }
+
+            if (isset($pairs[$pair])) {
+                $skippedNumbers++;
+
+                continue;
+            }
+
+            $numberRows[] = [
+                'id' => $id,
+                'product_id' => $productId,
+                'factory_id' => $factoryId,
+                'number' => $this->blankToNull($number['number'] ?? null),
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+            $pairs[$pair] = true;
+        }
+
+        $this->info('Mold numbers already stored: '.$numbersAlready.'. Remaining: '.count($numberRows).'.');
+        $numbersWritten = 0;
+        foreach (array_chunk($numberRows, 200) as $chunk) {
+            DB::table('mold_numbers')->insert($chunk);
+            $numbersWritten += count($chunk);
+            $this->info("Mold numbers written: {$numbersWritten}");
+        }
+
+        $this->syncSequence('mold_numbers');
+
+        return [
+            'molds' => $written,
+            'numbers' => $numbersWritten,
+            'skipped_molds' => $skippedMolds,
+            'skipped_numbers' => $skippedNumbers,
+        ];
+    }
+
+    private function rememberMoldFile(int $moldId, string $collection, string $fileName): void
+    {
+        if (! Schema::hasTable('media')) {
+            return;
+        }
+
+        $existing = DB::table('media')
+            ->where('model_type', Mold::class)
+            ->where('model_id', $moldId)
+            ->where('collection', $collection)
+            ->first();
+
+        if ($existing !== null && $existing->path !== null) {
+            return;
+        }
+
+        $now = now();
+        DB::table('media')->updateOrInsert(
+            [
+                'model_type' => Mold::class,
+                'model_id' => $moldId,
+                'collection' => $collection,
+            ],
+            [
+                'disk' => 'local',
+                'path' => null,
+                'file_name' => $fileName,
+                'mime_type' => null,
+                'size' => null,
+                'created_at' => $existing->created_at ?? $now,
+                'updated_at' => $now,
+            ],
+        );
+    }
+
+    private function plainDate(?string $value): ?string
+    {
+        $value = trim((string) $value);
+        if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) || str_starts_with($value, '0000')) {
+            return null;
+        }
+
+        return $value;
     }
 
     private function importFactoryOrdersOnly(string $path): int

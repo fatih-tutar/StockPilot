@@ -35,6 +35,7 @@ const form = useForm({
     quantity_pallet: props.product?.quantity_pallet ?? 0,
     low_stock_threshold: props.product?.low_stock_threshold ?? '',
     is_active: props.product?.is_active ?? true,
+    mold_number: props.product?.mold_number || '',
 });
 
 const adjustForm = useForm({
@@ -211,6 +212,16 @@ const destroyProduct = () => {
                                 class="mt-1 block w-full"
                             />
                             <InputError class="mt-2" :message="form.errors.quantity_pallet" />
+                        </div>
+                        <div v-if="isEdit && product.factory_id" class="md:col-span-2">
+                            <InputLabel for="mold_number" :value="`Kalıp numarası (${product.factory_name || 'fabrika'})`" />
+                            <TextInput
+                                id="mold_number"
+                                v-model="form.mold_number"
+                                class="mt-1 block w-full"
+                                :disabled="!canManage"
+                            />
+                            <InputError class="mt-2" :message="form.errors.mold_number" />
                         </div>
                         <div class="md:col-span-2">
                             <InputLabel for="description" value="Açıklama" />

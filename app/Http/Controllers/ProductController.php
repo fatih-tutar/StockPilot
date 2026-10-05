@@ -7,6 +7,7 @@ use App\Http\Requests\Catalog\AdjustStockRequest;
 use App\Http\Requests\Catalog\StoreProductRequest;
 use App\Http\Requests\Catalog\UpdateProductRequest;
 use App\Models\Category;
+use App\Models\MoldNumber;
 use App\Models\Product;
 use App\Models\StockMovement;
 use Illuminate\Http\RedirectResponse;
@@ -88,7 +89,13 @@ class ProductController extends Controller
     {
         $this->authorize('view', $product);
 
-        $product->load('category:id,name');
+        $product->load(['category:id,name', 'sourceFactory:id,name']);
+        $moldNumber = $product->factory_id === null
+            ? null
+            : MoldNumber::query()
+                ->where('product_id', $product->id)
+                ->where('factory_id', $product->factory_id)
+                ->value('number');
 
         $movements = $product->stockMovements()
             ->with('user:id,name')
@@ -117,6 +124,9 @@ class ProductController extends Controller
                 'low_stock_threshold' => $product->low_stock_threshold,
                 'is_active' => $product->is_active,
                 'is_low_stock' => $product->isLowStock(),
+                'factory_id' => $product->factory_id,
+                'factory_name' => $product->sourceFactory?->name,
+                'mold_number' => $moldNumber,
                 'category' => $product->category?->only(['id', 'name']),
             ],
             'categories' => Category::query()->orderBy('name')->get(['id', 'name']),
@@ -127,7 +137,22 @@ class ProductController extends Controller
 
     public function update(UpdateProductRequest $request, Product $product): RedirectResponse
     {
-        $product->update($request->validated());
+        $data = $request->validated();
+        $hasMoldNumber = array_key_exists('mold_number', $data);
+        $moldNumber = $data['mold_number'] ?? null;
+        unset($data['mold_number']);
+
+        $product->update($data);
+
+        if ($hasMoldNumber && $product->factory_id !== null) {
+            MoldNumber::query()->updateOrCreate(
+                [
+                    'product_id' => $product->id,
+                    'factory_id' => $product->factory_id,
+                ],
+                ['number' => $moldNumber],
+            );
+        }
 
         return redirect()
             ->route('products.edit', $product)

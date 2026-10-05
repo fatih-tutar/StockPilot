@@ -38,6 +38,12 @@ const menus = computed(() => {
                     active: route().current('categories.*'),
                     visible: allowed('stock.view', 'stock.manage'),
                 },
+                {
+                    label: 'Kalıplar',
+                    href: route('molds.index'),
+                    active: route().current('molds.*'),
+                    visible: allowed('molds.view', 'molds.manage'),
+                },
             ],
         },
         {

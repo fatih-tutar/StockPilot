@@ -11,6 +11,7 @@ import { computed } from 'vue';
 
 const props = defineProps({
     client: { type: Object, default: null },
+    canViewMolds: { type: Boolean, default: false },
     canManage: { type: Boolean, default: false },
 });
 
@@ -169,6 +170,36 @@ const destroyClient = () => {
                         </DangerButton>
                     </div>
                 </form>
+
+                <section
+                    v-if="isEdit && canViewMolds"
+                    class="bg-white p-6 shadow-sm sm:rounded-lg"
+                >
+                    <h3 class="text-sm font-medium text-gray-800">Kalıplar</h3>
+                    <p v-if="!client.molds?.length" class="mt-3 text-sm text-gray-500">
+                        Bu firmaya bağlı kalıp yok.
+                    </p>
+                    <ul v-else class="mt-4 space-y-3">
+                        <li
+                            v-for="mold in client.molds"
+                            :key="mold.id"
+                            class="flex items-start justify-between gap-3 rounded-md border border-gray-100 px-4 py-3"
+                        >
+                            <div class="text-sm text-gray-800">
+                                {{ mold.number || '—' }}
+                                · {{ mold.factory_name || '—' }}
+                                · {{ mold.due_on || 'Termin yok' }}
+                                <span v-if="mold.archived" class="text-gray-500">· Arşiv</span>
+                            </div>
+                            <Link
+                                :href="route('molds.edit', mold.id)"
+                                class="text-sm text-indigo-600 hover:text-indigo-800"
+                            >
+                                Aç
+                            </Link>
+                        </li>
+                    </ul>
+                </section>
 
                 <section
                     v-if="isEdit"

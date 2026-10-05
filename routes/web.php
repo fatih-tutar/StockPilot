@@ -8,6 +8,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FactoryController;
 use App\Http\Controllers\FactoryOrderController;
 use App\Http\Controllers\FactoryOrderFormController;
+use App\Http\Controllers\MoldController;
 use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
@@ -48,6 +49,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('clients', ClientController::class)->except(['show']);
 
     Route::resource('factories', FactoryController::class)->except(['show']);
+
+    Route::get('molds/archive', [MoldController::class, 'archived'])->name('molds.archived');
+    Route::post('molds/{mold}/archive', [MoldController::class, 'archive'])->name('molds.archive');
+    Route::post('molds/{mold}/unarchive', [MoldController::class, 'unarchive'])->name('molds.unarchive');
+    Route::get('molds/{mold}/documents/{medium}', [MoldController::class, 'downloadDocument'])
+        ->name('molds.documents.download');
+    Route::resource('molds', MoldController::class)->except(['show']);
 
     Route::post('factory-orders/{factory_order}/receive', [FactoryOrderController::class, 'receive'])
         ->name('factory-orders.receive');

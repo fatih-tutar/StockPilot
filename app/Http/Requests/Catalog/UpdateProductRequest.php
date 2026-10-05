@@ -12,6 +12,15 @@ class UpdateProductRequest extends FormRequest
         return $this->user()?->can('update', $this->route('product')) ?? false;
     }
 
+    protected function prepareForValidation(): void
+    {
+        if ($this->exists('mold_number')) {
+            $this->merge([
+                'mold_number' => $this->input('mold_number') === '' ? null : $this->input('mold_number'),
+            ]);
+        }
+    }
+
     public function rules(): array
     {
         $productId = $this->route('product')?->id;
@@ -23,6 +32,7 @@ class UpdateProductRequest extends FormRequest
             'description' => ['nullable', 'string'],
             'low_stock_threshold' => ['nullable', 'integer', 'min:0'],
             'is_active' => ['sometimes', 'boolean'],
+            'mold_number' => ['nullable', 'string', 'max:32'],
         ];
     }
 }

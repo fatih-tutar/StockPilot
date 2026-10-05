@@ -80,6 +80,11 @@ class Product extends Model
         return $this->hasMany(StockMovement::class);
     }
 
+    public function moldNumbers(): HasMany
+    {
+        return $this->hasMany(MoldNumber::class);
+    }
+
     public function isLowStock(): bool
     {
         if ($this->low_stock_threshold === null) {
