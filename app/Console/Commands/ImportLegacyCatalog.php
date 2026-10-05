@@ -778,6 +778,7 @@ class ImportLegacyCatalog extends Command
             return self::FAILURE;
         }
 
+        $this->info('Reading factory order files.');
         $result = $this->insertFactoryOrders($this->csv($formsFile), $this->csv($ordersFile));
         $this->info("Imported {$result['forms']} factory order forms and {$result['orders']} factory orders.");
 
@@ -812,6 +813,8 @@ class ImportLegacyCatalog extends Command
         $companyIds = DB::table('companies')->pluck('id')->flip();
         $existingForms = DB::table('factory_order_forms')->pluck('id')->flip();
         $existingOrders = DB::table('factory_orders')->pluck('id')->flip();
+        $formsAlready = count($existingForms);
+        $ordersAlready = count($existingOrders);
         $usersByName = [];
         $ambiguousNames = [];
 
@@ -870,8 +873,12 @@ class ImportLegacyCatalog extends Command
             $existingForms[$id] = true;
         }
 
-        foreach (array_chunk($formRows, 400) as $chunk) {
+        $this->info('Factory order forms already stored: '.$formsAlready.'. Remaining: '.count($formRows).'.');
+        $formsWritten = 0;
+        foreach (array_chunk($formRows, 200) as $chunk) {
             DB::table('factory_order_forms')->insert($chunk);
+            $formsWritten += count($chunk);
+            $this->info("Factory order forms written: {$formsWritten}");
         }
 
         $orderRows = [];
@@ -882,6 +889,15 @@ class ImportLegacyCatalog extends Command
         foreach ($orders as $order) {
             $id = (int) $order['siparis_id'];
             $factoryId = (int) $order['urun_fabrika_id'];
+            $preparerKey = $this->personKey((string) ($order['hazirlayankisi'] ?? ''));
+            $preparerId = $usersByName[$preparerKey] ?? null;
+
+            if ($id !== 0) {
+                $orderPreparer[$id] = [
+                    'prepared_by_user_id' => $preparerId,
+                    'contact_name' => $this->blankToNull($order['ilgilikisi']),
+                ];
+            }
 
             if ($id === 0 || isset($existingOrders[$id])) {
                 continue;
@@ -897,8 +913,6 @@ class ImportLegacyCatalog extends Command
             $dueOn = $this->unixTimestamp($order['terminsaniye']);
             $companyId = (int) $order['sirketid'];
             $productId = (int) $order['urun_id'];
-            $preparerKey = $this->personKey((string) ($order['hazirlayankisi'] ?? ''));
-            $preparerId = $usersByName[$preparerKey] ?? null;
 
             if ($preparerKey !== '' && $preparerId === null) {
                 if (isset($ambiguousNames[$preparerKey])) {
@@ -926,15 +940,15 @@ class ImportLegacyCatalog extends Command
                 'updated_at' => $createdAt,
                 'deleted_at' => ((string) ($order['silik'] ?? '0')) === '1' ? $createdAt : null,
             ];
-            $orderPreparer[$id] = [
-                'prepared_by_user_id' => $preparerId,
-                'contact_name' => $this->blankToNull($order['ilgilikisi']),
-            ];
             $existingOrders[$id] = true;
         }
 
-        foreach (array_chunk($orderRows, 400) as $chunk) {
+        $this->info('Factory orders already stored: '.$ordersAlready.'. Remaining: '.count($orderRows).'.');
+        $ordersWritten = 0;
+        foreach (array_chunk($orderRows, 200) as $chunk) {
             DB::table('factory_orders')->insert($chunk);
+            $ordersWritten += count($chunk);
+            $this->info("Factory orders written: {$ordersWritten}");
         }
 
         usort($forms, fn (array $left, array $right): int => ((int) $left['formid']) <=> ((int) $right['formid']));
@@ -969,18 +983,34 @@ class ImportLegacyCatalog extends Command
             $byForm[$formId][] = $orderId;
         }
 
+        $this->info('Linking order lines to '.count($byForm).' forms.');
+        $linkedForms = 0;
         foreach ($byForm as $formId => $orderIds) {
-            foreach (array_chunk($orderIds, 400) as $chunk) {
+            foreach (array_chunk($orderIds, 200) as $chunk) {
                 DB::table('factory_orders')
                     ->whereIn('id', $chunk)
                     ->whereNull('factory_order_form_id')
                     ->update(['factory_order_form_id' => $formId]);
             }
+            $linkedForms++;
+            if ($linkedForms % 100 === 0) {
+                $this->info("Forms linked: {$linkedForms}");
+            }
         }
+        $this->info("Forms linked: {$linkedForms}");
 
+        $blankFormIds = DB::table('factory_order_forms')
+            ->whereNull('prepared_by_user_id')
+            ->whereNull('contact_name')
+            ->pluck('id')
+            ->flip();
         $headers = [];
         foreach ($assignment as $orderId => $formId) {
-            if (! isset($newFormIds[$formId]) || ! isset($orderPreparer[$orderId])) {
+            if (! isset($newFormIds[$formId]) && ! isset($blankFormIds[$formId])) {
+                continue;
+            }
+
+            if (! isset($orderPreparer[$orderId])) {
                 continue;
             }
 
@@ -993,12 +1023,7 @@ class ImportLegacyCatalog extends Command
             }
         }
 
-        foreach ($headers as $formId => $header) {
-            DB::table('factory_order_forms')->where('id', $formId)->update([
-                'prepared_by_user_id' => $header['prepared_by_user_id'],
-                'contact_name' => $header['contact_name'],
-            ]);
-        }
+        $this->writeFactoryOrderFormHeaders($headers);
 
         $this->syncSequence('factory_order_forms');
         $this->syncSequence('factory_orders');
@@ -1011,6 +1036,46 @@ class ImportLegacyCatalog extends Command
             'skipped_factory' => $skippedFactory,
             'duplicate_form_links' => $duplicateLinks,
         ];
+    }
+
+    /**
+     * @param  array<int, array{id: int, prepared_by_user_id: int|null, contact_name: string|null}>  $headers
+     */
+    private function writeFactoryOrderFormHeaders(array $headers): void
+    {
+        $written = 0;
+        $this->info('Form headers remaining: '.count($headers).'.');
+
+        foreach (array_chunk($headers, 100, true) as $chunk) {
+            if (DB::getDriverName() === 'pgsql') {
+                $values = [];
+                $bindings = [];
+                foreach ($chunk as $formId => $header) {
+                    $values[] = '(?::bigint, ?::bigint, ?)';
+                    $bindings[] = $formId;
+                    $bindings[] = $header['prepared_by_user_id'];
+                    $bindings[] = $header['contact_name'];
+                }
+
+                DB::update(
+                    'UPDATE factory_order_forms AS f
+                    SET prepared_by_user_id = v.prepared_by_user_id, contact_name = v.contact_name
+                    FROM (VALUES '.implode(', ', $values).') AS v(id, prepared_by_user_id, contact_name)
+                    WHERE f.id = v.id',
+                    $bindings,
+                );
+            } else {
+                foreach ($chunk as $formId => $header) {
+                    DB::table('factory_order_forms')->where('id', $formId)->update([
+                        'prepared_by_user_id' => $header['prepared_by_user_id'],
+                        'contact_name' => $header['contact_name'],
+                    ]);
+                }
+            }
+
+            $written += count($chunk);
+            $this->info("Form headers written: {$written}");
+        }
     }
 
     private function personKey(string $name): string
