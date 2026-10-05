@@ -2,12 +2,14 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\CatalogImage;
 use App\Enums\CustomOrderStatus;
 use App\Enums\DeliveryMethod;
 use App\Enums\MoldDocument;
 use App\Enums\StaffDocument;
 use App\Enums\UserAccessLevel;
 use App\Enums\VehicleDocument;
+use App\Models\CatalogItem;
 use App\Models\Category;
 use App\Models\CategoryColumnDefinition;
 use App\Models\Mold;
@@ -28,7 +30,7 @@ use Illuminate\Support\Str;
 
 class ImportLegacyCatalog extends Command
 {
-    protected $signature = 'stockpilot:import-legacy {path : Directory with the legacy CSV exports} {--only= : Import one dataset: factories, vehicles, custom-orders, clients, visits, jobs, organizations, users, factory-orders, or molds}';
+    protected $signature = 'stockpilot:import-legacy {path : Directory with the legacy CSV exports} {--only= : Import one dataset: factories, vehicles, custom-orders, clients, visits, jobs, organizations, users, factory-orders, molds, or catalog}';
 
     protected $description = 'Import companies, categories, column layout, products, and factories from local CSV exports';
 
@@ -74,6 +76,10 @@ class ImportLegacyCatalog extends Command
 
         if ($this->option('only') === 'molds') {
             return $this->importMoldsOnly($path);
+        }
+
+        if ($this->option('only') === 'catalog') {
+            return $this->importCatalogOnly($path);
         }
 
         foreach (['companies.csv', 'categories.csv', 'category_columns_definitions.csv', 'category_columns.csv', 'products.csv'] as $file) {
@@ -760,6 +766,125 @@ class ImportLegacyCatalog extends Command
                 'model_type' => User::class,
                 'model_id' => $userId,
                 'collection' => $document->value,
+            ],
+            [
+                'disk' => 'local',
+                'path' => null,
+                'file_name' => $fileName,
+                'mime_type' => null,
+                'size' => null,
+                'created_at' => $existing->created_at ?? $now,
+                'updated_at' => $now,
+            ],
+        );
+    }
+
+    private function importCatalogOnly(string $path): int
+    {
+        $file = $path.'/catalog.csv';
+
+        if (! is_file($file)) {
+            $this->error("Missing catalog.csv in {$path}");
+
+            return self::FAILURE;
+        }
+
+        $this->info('Reading catalog file.');
+        $written = $this->insertCatalogItems($this->csv($file));
+        $this->info("Imported {$written} catalog rows.");
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * @param  array<int, array<string, string|null>>  $rows
+     */
+    private function insertCatalogItems(array $rows): int
+    {
+        $existing = DB::table('catalog_items')->pluck('id')->map(fn ($id) => (int) $id)->flip();
+        $now = now();
+        $pending = [];
+        $files = [];
+        $already = 0;
+
+        foreach ($rows as $row) {
+            $id = (int) ($row['id'] ?? 0);
+            if ($id < 1) {
+                continue;
+            }
+
+            $createdAt = $this->unixTimestamp($row['created_at'] ?? null);
+            $record = [
+                'id' => $id,
+                'company_id' => null,
+                'product_code' => $this->blankToNull($row['product'] ?? null),
+                'code' => $this->blankToNull($row['code'] ?? null),
+                'model' => $this->blankToNull($row['model'] ?? null),
+                'quantity' => $this->blankToNull($row['quantity'] ?? null),
+                'price' => $this->blankToNull($row['price'] ?? null),
+                'description' => $this->blankToNull($row['description'] ?? null),
+                'sort_order' => (int) ($row['sort_order'] ?? 0),
+                'created_at' => $createdAt?->toDateTimeString() ?? $now,
+                'updated_at' => $now,
+                'deleted_at' => ($row['is_deleted'] ?? '0') === '1' ? $now : null,
+            ];
+
+            if (isset($existing[$id])) {
+                $already++;
+            } else {
+                $pending[] = $record;
+            }
+
+            foreach ([
+                CatalogImage::Primary->value => $row['image_1'] ?? null,
+                CatalogImage::Secondary->value => $row['image_2'] ?? null,
+            ] as $collection => $fileName) {
+                $fileName = $this->blankToNull($fileName);
+                if ($fileName !== null) {
+                    $files[] = [$id, $collection, $fileName];
+                }
+            }
+        }
+
+        $this->info('Catalog rows already stored: '.$already.'. Remaining: '.count($pending).'.');
+        $written = 0;
+        foreach (array_chunk($pending, 100) as $chunk) {
+            DB::table('catalog_items')->insert($chunk);
+            $written += count($chunk);
+            $this->info("Catalog rows written: {$written}");
+        }
+
+        foreach ($files as [$id, $collection, $fileName]) {
+            $this->rememberCatalogFile($id, $collection, $fileName);
+        }
+
+        $this->syncSequence('catalog_items');
+
+        return $written;
+    }
+
+    private function rememberCatalogFile(int $catalogItemId, string $collection, string $fileName): void
+    {
+        if (! Schema::hasTable('media')) {
+            return;
+        }
+
+        $existing = DB::table('media')
+            ->where('model_type', CatalogItem::class)
+            ->where('model_id', $catalogItemId)
+            ->where('collection', $collection)
+            ->first();
+
+        if ($existing !== null && $existing->path !== null) {
+            return;
+        }
+
+        $now = now();
+        DB::table('media')->updateOrInsert(
+            [
+                'model_type' => CatalogItem::class,
+                'model_id' => $catalogItemId,
+                'collection' => $collection,
             ],
             [
                 'disk' => 'local',

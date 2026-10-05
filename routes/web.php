@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\CatalogItemController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\CustomerVisitController;
@@ -56,6 +57,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('molds/{mold}/documents/{medium}', [MoldController::class, 'downloadDocument'])
         ->name('molds.documents.download');
     Route::resource('molds', MoldController::class)->except(['show']);
+
+    Route::get('catalog-items/print', [CatalogItemController::class, 'print'])->name('catalog-items.print');
+    Route::post('catalog-items/visibility', [CatalogItemController::class, 'toggleVisibility'])
+        ->name('catalog-items.visibility');
+    Route::post('catalog-items/{catalog_item}/move', [CatalogItemController::class, 'move'])
+        ->name('catalog-items.move');
+    Route::delete('catalog-items/{catalog_item}/group', [CatalogItemController::class, 'destroyGroup'])
+        ->name('catalog-items.group.destroy');
+    Route::get('catalog-items/{catalog_item}/images/{medium}', [CatalogItemController::class, 'downloadImage'])
+        ->name('catalog-items.images.download');
+    Route::resource('catalog-items', CatalogItemController::class)->except(['show']);
 
     Route::post('factory-orders/{factory_order}/receive', [FactoryOrderController::class, 'receive'])
         ->name('factory-orders.receive');

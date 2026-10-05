@@ -44,6 +44,12 @@ const menus = computed(() => {
                     active: route().current('molds.*'),
                     visible: allowed('molds.view', 'molds.manage'),
                 },
+                {
+                    label: 'Fiyat listesi',
+                    href: route('catalog-items.index'),
+                    active: route().current('catalog-items.*'),
+                    visible: allowed('catalog.view', 'catalog.manage'),
+                },
             ],
         },
         {
