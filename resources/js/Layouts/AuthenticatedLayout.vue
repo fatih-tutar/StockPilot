@@ -1,106 +1,137 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import ApplicationLogo from '@/Components/ApplicationLogo.vue';
 import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
 import NavLink from '@/Components/NavLink.vue';
+import NavMenu from '@/Components/NavMenu.vue';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink.vue';
 import { Link, usePage } from '@inertiajs/vue3';
 
 const showingNavigationDropdown = ref(false);
 const page = usePage();
 
-const canViewStock = computed(() => {
-    const permissions = page.props.auth?.user?.permissions || [];
-    return (
-        permissions.includes('stock.view') ||
-        permissions.includes('stock.manage')
-    );
-});
+watch(
+    () => page.url,
+    () => {
+        showingNavigationDropdown.value = false;
+    },
+);
 
-const canViewClients = computed(() => {
+const menus = computed(() => {
     const permissions = page.props.auth?.user?.permissions || [];
-    return (
-        permissions.includes('clients.view') ||
-        permissions.includes('clients.manage')
-    );
-});
+    const allowed = (...names) => names.some((name) => permissions.includes(name));
 
-const canViewFactories = computed(() => {
-    const permissions = page.props.auth?.user?.permissions || [];
-    return (
-        permissions.includes('factories.view') ||
-        permissions.includes('factories.manage')
-    );
-});
-
-const canViewFactoryOrders = computed(() => {
-    const permissions = page.props.auth?.user?.permissions || [];
-    return (
-        permissions.includes('factory_orders.view') ||
-        permissions.includes('factory_orders.manage')
-    );
-});
-
-const canViewVehicles = computed(() => {
-    const permissions = page.props.auth?.user?.permissions || [];
-    return (
-        permissions.includes('vehicles.view') ||
-        permissions.includes('vehicles.manage')
-    );
-});
-
-const canViewVisits = computed(() => {
-    const permissions = page.props.auth?.user?.permissions || [];
-    return (
-        permissions.includes('visits.view') ||
-        permissions.includes('visits.manage')
-    );
-});
-
-const canViewWorkTasks = computed(() => {
-    const permissions = page.props.auth?.user?.permissions || [];
-    return (
-        permissions.includes('work_tasks.view') ||
-        permissions.includes('work_tasks.manage')
-    );
-});
-
-const canViewStaff = computed(() => {
-    const permissions = page.props.auth?.user?.permissions || [];
-    return permissions.includes('users.manage');
-});
-
-const canViewOrganization = computed(() => {
-    const permissions = page.props.auth?.user?.permissions || [];
-    return (
-        permissions.includes('organizations.view') ||
-        permissions.includes('organizations.manage')
-    );
-});
-
-const canViewCustomOrders = computed(() => {
-    const permissions = page.props.auth?.user?.permissions || [];
-    return (
-        permissions.includes('custom_orders.view') ||
-        permissions.includes('custom_orders.manage')
-    );
-});
-
-const canViewQuotes = computed(() => {
-    const permissions = page.props.auth?.user?.permissions || [];
-    return (
-        permissions.includes('quotes.view') ||
-        permissions.includes('quotes.manage')
-    );
-});
-
-const canViewShipments = computed(() => {
-    const permissions = page.props.auth?.user?.permissions || [];
-    return (
-        permissions.includes('shipments.view') ||
-        permissions.includes('shipments.manage')
-    );
+    return [
+        {
+            label: 'Stok',
+            items: [
+                {
+                    label: 'Ürünler',
+                    href: route('products.index'),
+                    active: route().current('products.*'),
+                    visible: allowed('stock.view', 'stock.manage'),
+                },
+                {
+                    label: 'Kategoriler',
+                    href: route('categories.index'),
+                    active: route().current('categories.*'),
+                    visible: allowed('stock.view', 'stock.manage'),
+                },
+            ],
+        },
+        {
+            label: 'Satış',
+            items: [
+                {
+                    label: 'Müşteriler',
+                    href: route('clients.index'),
+                    active: route().current('clients.*'),
+                    visible: allowed('clients.view', 'clients.manage'),
+                },
+                {
+                    label: 'Teklifler',
+                    href: route('quotes.index'),
+                    active: route().current('quotes.*'),
+                    visible: allowed('quotes.view', 'quotes.manage'),
+                },
+                {
+                    label: 'Özel siparişler',
+                    href: route('custom-orders.index'),
+                    active: route().current('custom-orders.*'),
+                    visible: allowed('custom_orders.view', 'custom_orders.manage'),
+                },
+                {
+                    label: 'Ziyaretler',
+                    href: route('customer-visits.index'),
+                    active: route().current('customer-visits.*'),
+                    visible: allowed('visits.view', 'visits.manage'),
+                },
+            ],
+        },
+        {
+            label: 'Fabrika',
+            items: [
+                {
+                    label: 'Fabrikalar',
+                    href: route('factories.index'),
+                    active: route().current('factories.*'),
+                    visible: allowed('factories.view', 'factories.manage'),
+                },
+                {
+                    label: 'Fabrika siparişleri',
+                    href: route('factory-orders.index'),
+                    active: route().current('factory-orders.*') || route().current('factory-order-forms.*'),
+                    visible: allowed('factory_orders.view', 'factory_orders.manage'),
+                },
+            ],
+        },
+        {
+            label: 'Sevkiyat',
+            items: [
+                {
+                    label: 'Sevkiyatlar',
+                    href: route('shipments.index'),
+                    active: route().current('shipments.*'),
+                    visible: allowed('shipments.view', 'shipments.manage'),
+                },
+                {
+                    label: 'Araçlar',
+                    href: route('vehicles.index'),
+                    active: route().current('vehicles.*'),
+                    visible: allowed('vehicles.view', 'vehicles.manage'),
+                },
+            ],
+        },
+        {
+            label: 'Ofis',
+            items: [
+                {
+                    label: 'İşler',
+                    href: route('work-tasks.index'),
+                    active: route().current('work-tasks.*'),
+                    visible: allowed('work_tasks.view', 'work_tasks.manage'),
+                },
+                {
+                    label: 'Personel',
+                    href: route('staff.index'),
+                    active: route().current('staff.*'),
+                    visible: allowed('users.manage'),
+                },
+                {
+                    label: 'Organizasyon',
+                    href: route('organization.index'),
+                    active: route().current('organization.*'),
+                    visible: allowed('organizations.view', 'organizations.manage'),
+                },
+            ],
+        },
+    ]
+        .map((menu) => ({
+            ...menu,
+            items: menu.items.filter((item) => item.visible),
+        }))
+        .filter((menu) => menu.items.length > 0);
 });
 </script>
 
@@ -117,104 +148,20 @@ const canViewShipments = computed(() => {
                                 </Link>
                             </div>
 
-                            <div class="hidden min-w-0 flex-1 items-stretch gap-x-5 overflow-x-auto [scrollbar-width:thin] xl:-my-px xl:flex [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-300">
+                            <div class="hidden min-w-0 flex-1 items-stretch gap-x-5 overflow-visible xl:flex">
                                 <NavLink
                                     :href="route('dashboard')"
                                     :active="route().current('dashboard')"
                                 >
                                     Panel
                                 </NavLink>
-                                <NavLink
-                                    v-if="canViewStock"
-                                    :href="route('products.index')"
-                                    :active="route().current('products.*')"
-                                >
-                                    Ürünler
-                                </NavLink>
-                                <NavLink
-                                    v-if="canViewStock"
-                                    :href="route('categories.index')"
-                                    :active="route().current('categories.*')"
-                                >
-                                    Kategoriler
-                                </NavLink>
-                                <NavLink
-                                    v-if="canViewClients"
-                                    :href="route('clients.index')"
-                                    :active="route().current('clients.*')"
-                                >
-                                    Müşteriler
-                                </NavLink>
-                                <NavLink
-                                    v-if="canViewFactories"
-                                    :href="route('factories.index')"
-                                    :active="route().current('factories.*')"
-                                >
-                                    Fabrikalar
-                                </NavLink>
-                                <NavLink
-                                    v-if="canViewFactoryOrders"
-                                    :href="route('factory-orders.index')"
-                                    :active="route().current('factory-orders.*') || route().current('factory-order-forms.*')"
-                                >
-                                    Fabrika siparişleri
-                                </NavLink>
-                                <NavLink
-                                    v-if="canViewVehicles"
-                                    :href="route('vehicles.index')"
-                                    :active="route().current('vehicles.*')"
-                                >
-                                    Araçlar
-                                </NavLink>
-                                <NavLink
-                                    v-if="canViewCustomOrders"
-                                    :href="route('custom-orders.index')"
-                                    :active="route().current('custom-orders.*')"
-                                >
-                                    Özel siparişler
-                                </NavLink>
-                                <NavLink
-                                    v-if="canViewVisits"
-                                    :href="route('customer-visits.index')"
-                                    :active="route().current('customer-visits.*')"
-                                >
-                                    Ziyaretler
-                                </NavLink>
-                                <NavLink
-                                    v-if="canViewWorkTasks"
-                                    :href="route('work-tasks.index')"
-                                    :active="route().current('work-tasks.*')"
-                                >
-                                    İşler
-                                </NavLink>
-                                <NavLink
-                                    v-if="canViewStaff"
-                                    :href="route('staff.index')"
-                                    :active="route().current('staff.*')"
-                                >
-                                    Personel
-                                </NavLink>
-                                <NavLink
-                                    v-if="canViewOrganization"
-                                    :href="route('organization.index')"
-                                    :active="route().current('organization.*')"
-                                >
-                                    Organizasyon
-                                </NavLink>
-                                <NavLink
-                                    v-if="canViewQuotes"
-                                    :href="route('quotes.index')"
-                                    :active="route().current('quotes.*')"
-                                >
-                                    Teklifler
-                                </NavLink>
-                                <NavLink
-                                    v-if="canViewShipments"
-                                    :href="route('shipments.index')"
-                                    :active="route().current('shipments.*')"
-                                >
-                                    Sevkiyatlar
-                                </NavLink>
+                                <NavMenu
+                                    v-for="menu in menus"
+                                    :key="menu.label"
+                                    :label="menu.label"
+                                    :active="menu.items.some((item) => item.active)"
+                                    :items="menu.items"
+                                />
                             </div>
                         </div>
 
@@ -311,97 +258,20 @@ const canViewShipments = computed(() => {
                         >
                             Panel
                         </ResponsiveNavLink>
-                        <ResponsiveNavLink
-                            v-if="canViewStock"
-                            :href="route('products.index')"
-                            :active="route().current('products.*')"
-                        >
-                            Ürünler
-                        </ResponsiveNavLink>
-                        <ResponsiveNavLink
-                            v-if="canViewStock"
-                            :href="route('categories.index')"
-                            :active="route().current('categories.*')"
-                        >
-                            Kategoriler
-                        </ResponsiveNavLink>
-                        <ResponsiveNavLink
-                            v-if="canViewClients"
-                            :href="route('clients.index')"
-                            :active="route().current('clients.*')"
-                        >
-                            Müşteriler
-                        </ResponsiveNavLink>
-                        <ResponsiveNavLink
-                            v-if="canViewFactories"
-                            :href="route('factories.index')"
-                            :active="route().current('factories.*')"
-                        >
-                            Fabrikalar
-                        </ResponsiveNavLink>
-                        <ResponsiveNavLink
-                            v-if="canViewFactoryOrders"
-                            :href="route('factory-orders.index')"
-                            :active="route().current('factory-orders.*') || route().current('factory-order-forms.*')"
-                        >
-                            Fabrika siparişleri
-                        </ResponsiveNavLink>
-                        <ResponsiveNavLink
-                            v-if="canViewVehicles"
-                            :href="route('vehicles.index')"
-                            :active="route().current('vehicles.*')"
-                        >
-                            Araçlar
-                        </ResponsiveNavLink>
-                        <ResponsiveNavLink
-                            v-if="canViewCustomOrders"
-                            :href="route('custom-orders.index')"
-                            :active="route().current('custom-orders.*')"
-                        >
-                            Özel siparişler
-                        </ResponsiveNavLink>
-                        <ResponsiveNavLink
-                            v-if="canViewVisits"
-                            :href="route('customer-visits.index')"
-                            :active="route().current('customer-visits.*')"
-                        >
-                            Ziyaretler
-                        </ResponsiveNavLink>
-                        <ResponsiveNavLink
-                            v-if="canViewWorkTasks"
-                            :href="route('work-tasks.index')"
-                            :active="route().current('work-tasks.*')"
-                        >
-                            İşler
-                        </ResponsiveNavLink>
-                        <ResponsiveNavLink
-                            v-if="canViewStaff"
-                            :href="route('staff.index')"
-                            :active="route().current('staff.*')"
-                        >
-                            Personel
-                        </ResponsiveNavLink>
-                        <ResponsiveNavLink
-                            v-if="canViewOrganization"
-                            :href="route('organization.index')"
-                            :active="route().current('organization.*')"
-                        >
-                            Organizasyon
-                        </ResponsiveNavLink>
-                        <ResponsiveNavLink
-                            v-if="canViewQuotes"
-                            :href="route('quotes.index')"
-                            :active="route().current('quotes.*')"
-                        >
-                            Teklifler
-                        </ResponsiveNavLink>
-                        <ResponsiveNavLink
-                            v-if="canViewShipments"
-                            :href="route('shipments.index')"
-                            :active="route().current('shipments.*')"
-                        >
-                            Sevkiyatlar
-                        </ResponsiveNavLink>
+                        <template v-for="menu in menus" :key="menu.label">
+                            <div class="px-4 pb-1 pt-4 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                                {{ menu.label }}
+                            </div>
+                            <ResponsiveNavLink
+                                v-for="item in menu.items"
+                                :key="item.href"
+                                :href="item.href"
+                                :active="item.active"
+                                indent
+                            >
+                                {{ item.label }}
+                            </ResponsiveNavLink>
+                        </template>
                     </div>
 
                     <div class="border-t border-gray-200 pb-1 pt-4">
