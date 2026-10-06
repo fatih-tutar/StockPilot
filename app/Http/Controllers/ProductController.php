@@ -9,6 +9,7 @@ use App\Http\Requests\Catalog\UpdateProductRequest;
 use App\Models\Category;
 use App\Models\MoldNumber;
 use App\Models\Product;
+use App\Models\StockActivity;
 use App\Models\StockMovement;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -97,19 +98,21 @@ class ProductController extends Controller
                 ->where('factory_id', $product->factory_id)
                 ->value('number');
 
-        $movements = $product->stockMovements()
+        $activities = $product->stockActivities()
             ->with('user:id,name')
-            ->latest()
+            ->latest('recorded_at')
+            ->latest('id')
             ->limit(20)
             ->get()
-            ->map(fn (StockMovement $movement) => [
-                'id' => $movement->id,
-                'type' => $movement->type,
-                'quantity_piece_delta' => $movement->quantity_piece_delta,
-                'quantity_pallet_delta' => $movement->quantity_pallet_delta,
-                'note' => $movement->note,
-                'user' => $movement->user?->only(['id', 'name']),
-                'created_at' => $movement->created_at?->toDateTimeString(),
+            ->map(fn (StockActivity $activity) => [
+                'id' => $activity->id,
+                'place' => $activity->place->label(),
+                'previous_quantity' => $activity->previous_quantity,
+                'new_quantity' => $activity->new_quantity,
+                'difference' => $activity->new_quantity - $activity->previous_quantity,
+                'note' => $activity->note,
+                'user' => $activity->user?->only(['id', 'name']),
+                'recorded_at' => $activity->recorded_at?->format('d.m.Y H:i'),
             ]);
 
         return Inertia::render('Products/Form', [
@@ -130,7 +133,7 @@ class ProductController extends Controller
                 'category' => $product->category?->only(['id', 'name']),
             ],
             'categories' => Category::query()->orderBy('name')->get(['id', 'name']),
-            'movements' => $movements,
+            'activities' => $activities,
             'canManage' => $request->user()->can('stock.manage'),
         ]);
     }

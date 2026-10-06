@@ -12,7 +12,7 @@ import { computed } from 'vue';
 const props = defineProps({
     product: { type: Object, default: null },
     categories: { type: Array, required: true },
-    movements: { type: Array, default: () => [] },
+    activities: { type: Array, default: () => [] },
     canManage: { type: Boolean, default: false },
 });
 
@@ -335,26 +335,26 @@ const destroyProduct = () => {
                         </h3>
                         <ul class="space-y-3 text-sm">
                             <li
-                                v-for="movement in movements"
-                                :key="movement.id"
+                                v-for="activity in activities"
+                                :key="activity.id"
                                 class="rounded border border-gray-100 px-3 py-2"
                             >
                                 <div class="font-medium text-gray-900">
-                                    {{ movement.type }}
-                                    · adet {{ movement.quantity_piece_delta }}
-                                    · palet {{ movement.quantity_pallet_delta }}
+                                    {{ activity.place }}
+                                    · {{ activity.previous_quantity }} → {{ activity.new_quantity }}
+                                    · fark {{ activity.difference > 0 ? `+${activity.difference}` : activity.difference }}
                                 </div>
                                 <div class="text-xs text-gray-500">
-                                    {{ movement.created_at }}
-                                    <span v-if="movement.user">
-                                        · {{ movement.user.name }}
+                                    {{ activity.recorded_at }}
+                                    <span v-if="activity.user">
+                                        · {{ activity.user.name }}
                                     </span>
                                 </div>
-                                <div v-if="movement.note" class="text-xs text-gray-600">
-                                    {{ movement.note }}
+                                <div v-if="activity.note" class="text-xs text-gray-600">
+                                    {{ activity.note }}
                                 </div>
                             </li>
-                            <li v-if="movements.length === 0" class="text-gray-500">
+                            <li v-if="activities.length === 0" class="text-gray-500">
                                 Henüz hareket yok.
                             </li>
                         </ul>

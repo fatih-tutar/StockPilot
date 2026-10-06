@@ -5,12 +5,14 @@ namespace App\Http\Controllers;
 use App\Actions\Stock\AdjustProductStock;
 use App\Enums\FactoryOrderDestination;
 use App\Enums\FactoryOrderStatus;
+use App\Enums\StockActivityPlace;
 use App\Http\Requests\FactoryOrder\ReceiveFactoryOrderRequest;
 use App\Http\Requests\FactoryOrder\StoreFactoryOrderRequest;
 use App\Http\Requests\FactoryOrder\UpdateFactoryOrderRequest;
 use App\Models\Factory;
 use App\Models\FactoryOrder;
 use App\Models\Product;
+use App\Models\StockActivity;
 use App\Models\StockMovement;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -215,8 +217,20 @@ class FactoryOrderController extends Controller
         DB::transaction(function () use ($product, $quantity, $user): void {
             /** @var Product $locked */
             $locked = Product::query()->whereKey($product->id)->lockForUpdate()->firstOrFail();
+            $previous = $locked->warehouse_quantity;
+
             $locked->update([
-                'warehouse_quantity' => $locked->warehouse_quantity + $quantity,
+                'warehouse_quantity' => $previous + $quantity,
+            ]);
+
+            StockActivity::query()->create([
+                'product_id' => $locked->id,
+                'user_id' => $user->id,
+                'place' => StockActivityPlace::Warehouse,
+                'previous_quantity' => $previous,
+                'new_quantity' => $previous + $quantity,
+                'note' => 'Depo stoğuna '.$quantity.' adet',
+                'recorded_at' => now(),
             ]);
 
             StockMovement::query()->create([

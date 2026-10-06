@@ -2,7 +2,9 @@
 
 namespace App\Actions\Stock;
 
+use App\Enums\StockActivityPlace;
 use App\Models\Product;
+use App\Models\StockActivity;
 use App\Models\StockMovement;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -35,10 +37,16 @@ class AdjustProductStock
                 throw new InvalidArgumentException('Stock quantities cannot go below zero.');
             }
 
+            $previousPiece = $locked->quantity_piece;
+            $previousPallet = $locked->quantity_pallet;
+
             $locked->update([
                 'quantity_piece' => $nextPiece,
                 'quantity_pallet' => $nextPallet,
             ]);
+
+            $this->recordActivity($locked, $user, StockActivityPlace::Store, $previousPiece, $nextPiece, $pieceDelta, $data['note'] ?? null);
+            $this->recordActivity($locked, $user, StockActivityPlace::Pallet, $previousPallet, $nextPallet, $palletDelta, $data['note'] ?? null);
 
             return StockMovement::query()->create([
                 'product_id' => $locked->id,
@@ -49,5 +57,29 @@ class AdjustProductStock
                 'note' => $data['note'] ?? null,
             ]);
         });
+    }
+
+    private function recordActivity(
+        Product $product,
+        ?User $user,
+        StockActivityPlace $place,
+        int $previous,
+        int $next,
+        int $delta,
+        ?string $note,
+    ): void {
+        if ($delta === 0) {
+            return;
+        }
+
+        StockActivity::query()->create([
+            'product_id' => $product->id,
+            'user_id' => $user?->id,
+            'place' => $place,
+            'previous_quantity' => $previous,
+            'new_quantity' => $next,
+            'note' => $note,
+            'recorded_at' => now(),
+        ]);
     }
 }

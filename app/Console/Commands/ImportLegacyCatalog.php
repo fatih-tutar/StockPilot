@@ -32,7 +32,7 @@ use Illuminate\Support\Str;
 
 class ImportLegacyCatalog extends Command
 {
-    protected $signature = 'stockpilot:import-legacy {path : Directory with the legacy CSV exports} {--only= : Import one dataset: factories, vehicles, custom-orders, clients, visits, jobs, organizations, users, factory-orders, molds, catalog, leaves, or movements}';
+    protected $signature = 'stockpilot:import-legacy {path : Directory with the legacy CSV exports} {--only= : Import one dataset: factories, vehicles, custom-orders, clients, visits, jobs, organizations, users, factory-orders, molds, catalog, leaves, movements, or stock-activities}';
 
     protected $description = 'Import companies, categories, column layout, products, and factories from local CSV exports';
 
@@ -90,6 +90,10 @@ class ImportLegacyCatalog extends Command
 
         if ($this->option('only') === 'movements') {
             return $this->importMovementsOnly($path);
+        }
+
+        if ($this->option('only') === 'stock-activities') {
+            return $this->importStockActivitiesOnly($path);
         }
 
         foreach (['companies.csv', 'categories.csv', 'category_columns_definitions.csv', 'category_columns.csv', 'products.csv'] as $file) {
@@ -968,6 +972,136 @@ class ImportLegacyCatalog extends Command
         $this->syncSequence('goods_flows');
 
         return ['written' => $written, 'skipped' => $skipped];
+    }
+
+    private function importStockActivitiesOnly(string $path): int
+    {
+        $file = $path.'/stock_activities.csv';
+
+        if (! is_file($file)) {
+            $this->error("Missing stock_activities.csv in {$path}");
+
+            return self::FAILURE;
+        }
+
+        $this->info('Reading stock activity file.');
+        $result = $this->insertStockActivities($file);
+        $this->info("Imported {$result['written']} stock activity rows.");
+
+        if ($result['skipped'] > 0) {
+            $this->warn("{$result['skipped']} stock activity rows were skipped because the product or the row is missing.");
+        }
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * @return array{written: int, skipped: int}
+     */
+    private function insertStockActivities(string $file): array
+    {
+        $handle = fopen($file, 'rb');
+
+        if ($handle === false) {
+            return ['written' => 0, 'skipped' => 0];
+        }
+
+        $header = fgetcsv($handle, null, ',', '"', '\\');
+
+        if ($header === false) {
+            fclose($handle);
+
+            return ['written' => 0, 'skipped' => 0];
+        }
+
+        $existing = DB::table('stock_activities')->pluck('id')->map(fn ($id) => (int) $id)->flip();
+        $products = DB::table('products')->pluck('id')->map(fn ($id) => (int) $id)->flip();
+        $users = DB::table('users')->pluck('id')->map(fn ($id) => (int) $id)->flip();
+        $companies = DB::table('companies')->pluck('id')->map(fn ($id) => (int) $id)->flip();
+        $now = now();
+        $pending = [];
+        $already = 0;
+        $skipped = 0;
+        $written = 0;
+
+        while (($line = fgetcsv($handle, null, ',', '"', '\\')) !== false) {
+            $row = array_combine($header, array_pad($line, count($header), null));
+
+            if ($row === false) {
+                $skipped++;
+
+                continue;
+            }
+
+            $id = (int) ($row['id'] ?? 0);
+            $productId = (int) ($row['product_id'] ?? 0);
+            $place = (int) ($row['type'] ?? -1);
+            $recordedAt = $this->activityTimestamp($row['datetime'] ?? null);
+
+            if ($id < 1 || $recordedAt === null || ! in_array($place, [0, 1, 2], true) || ! isset($products[$productId])) {
+                $skipped++;
+
+                continue;
+            }
+
+            if (isset($existing[$id])) {
+                $already++;
+
+                continue;
+            }
+
+            $userId = (int) ($row['created_by'] ?? 0);
+            $companyId = (int) ($row['company_id'] ?? 0);
+            $pending[] = [
+                'id' => $id,
+                'company_id' => isset($companies[$companyId]) ? $companyId : null,
+                'product_id' => $productId,
+                'user_id' => isset($users[$userId]) ? $userId : null,
+                'place' => $place,
+                'previous_quantity' => (int) ($row['prev_quantity'] ?? 0),
+                'new_quantity' => (int) ($row['new_quantity'] ?? 0),
+                'note' => null,
+                'recorded_at' => $recordedAt,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+
+            if (count($pending) < 500) {
+                continue;
+            }
+
+            DB::table('stock_activities')->insert($pending);
+            $written += count($pending);
+            $pending = [];
+
+            if ($written % 5000 === 0) {
+                $this->info("Stock activity rows written: {$written}");
+            }
+        }
+
+        fclose($handle);
+
+        if ($pending !== []) {
+            DB::table('stock_activities')->insert($pending);
+            $written += count($pending);
+        }
+
+        $this->info('Stock activity rows already stored: '.$already.'. Written: '.$written.'.');
+
+        if ($written > 0) {
+            $this->info("Stock activity rows written: {$written}");
+        }
+
+        $this->syncSequence('stock_activities');
+
+        return ['written' => $written, 'skipped' => $skipped];
+    }
+
+    private function activityTimestamp(?string $value): ?string
+    {
+        $value = trim((string) $value);
+
+        return preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $value) === 1 ? $value : null;
     }
 
     private function weight(?string $value): string
