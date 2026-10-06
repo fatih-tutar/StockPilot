@@ -3,7 +3,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link } from '@inertiajs/vue3';
 
 defineProps({
-    activities: { type: Array, required: true },
+    activities: { type: Object, required: true },
     product: { type: Object, default: null },
 });
 
@@ -42,12 +42,8 @@ const differenceLabel = (difference) => (difference > 0 ? `+${difference}` : Str
         <div class="py-8">
             <div class="mx-auto max-w-7xl space-y-4 px-4 sm:px-6 lg:px-8">
                 <p class="text-sm text-gray-600">
-                    <template v-if="product">
-                        {{ product.name }} için en yeni 300 kayıt.
-                    </template>
-                    <template v-else>
-                        En yeni 300 kayıt.
-                    </template>
+                    <template v-if="product">{{ product.name }} · </template>
+                    {{ new Intl.NumberFormat('tr-TR').format(activities.total) }} kayıt
                 </p>
 
                 <div class="overflow-x-auto bg-white shadow-sm sm:rounded-lg">
@@ -64,7 +60,7 @@ const differenceLabel = (difference) => (difference > 0 ? `+${difference}` : Str
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
-                            <tr v-for="activity in activities" :key="activity.id">
+                            <tr v-for="activity in activities.data" :key="activity.id">
                                 <td class="px-4 py-3 text-gray-800">{{ activity.user?.name || '—' }}</td>
                                 <td class="px-4 py-3">
                                     <Link
@@ -84,13 +80,28 @@ const differenceLabel = (difference) => (difference > 0 ? `+${difference}` : Str
                                 <td class="px-4 py-3 text-gray-800">{{ activity.place }}</td>
                                 <td class="px-4 py-3 text-gray-600">{{ activity.recorded_at }}</td>
                             </tr>
-                            <tr v-if="activities.length === 0">
+                            <tr v-if="activities.data.length === 0">
                                 <td colspan="7" class="px-4 py-8 text-center text-gray-500">
                                     Kayıt yok.
                                 </td>
                             </tr>
                         </tbody>
                     </table>
+
+                    <div
+                        v-if="activities.links?.length > 3"
+                        class="flex flex-wrap gap-2 border-t border-gray-100 px-4 py-3"
+                    >
+                        <Link
+                            v-for="link in activities.links"
+                            :key="link.label"
+                            :href="link.url || '#'"
+                            class="rounded border px-3 py-1 text-xs"
+                            :class="link.active ? 'border-gray-800 bg-gray-800 text-white' : 'border-gray-200 text-gray-700'"
+                            v-html="link.label"
+                            preserve-scroll
+                        />
+                    </div>
                 </div>
             </div>
         </div>

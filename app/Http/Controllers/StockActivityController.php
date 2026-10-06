@@ -28,9 +28,9 @@ class StockActivityController extends Controller
             ->when($actor->company_id !== null, fn ($query) => $query->where('company_id', $actor->company_id))
             ->when($product !== null, fn ($query) => $query->where('product_id', $product->id))
             ->orderByDesc('id')
-            ->limit(300)
-            ->get()
-            ->map(fn (StockActivity $activity) => [
+            ->paginate(50)
+            ->withQueryString()
+            ->through(fn (StockActivity $activity) => [
                 'id' => $activity->id,
                 'place' => $activity->place->label(),
                 'previous_quantity' => $activity->previous_quantity,
