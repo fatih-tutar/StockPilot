@@ -9,6 +9,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FactoryController;
 use App\Http\Controllers\FactoryOrderController;
 use App\Http\Controllers\FactoryOrderFormController;
+use App\Http\Controllers\LeaveController;
 use App\Http\Controllers\MoldController;
 use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\ProductController;
@@ -68,6 +69,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('catalog-items/{catalog_item}/images/{medium}', [CatalogItemController::class, 'downloadImage'])
         ->name('catalog-items.images.download');
     Route::resource('catalog-items', CatalogItemController::class)->except(['show']);
+
+    Route::resource('leaves', LeaveController::class)
+        ->except(['show'])
+        ->parameters(['leaves' => 'leave']);
 
     Route::post('factory-orders/{factory_order}/receive', [FactoryOrderController::class, 'receive'])
         ->name('factory-orders.receive');

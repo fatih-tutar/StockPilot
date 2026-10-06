@@ -131,6 +131,12 @@ const menus = computed(() => {
                     visible: allowed('users.manage'),
                 },
                 {
+                    label: 'İzinler',
+                    href: route('leaves.index'),
+                    active: route().current('leaves.*'),
+                    visible: allowed('leaves.view', 'leaves.manage'),
+                },
+                {
                     label: 'Organizasyon',
                     href: route('organization.index'),
                     active: route().current('organization.*'),

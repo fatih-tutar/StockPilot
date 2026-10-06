@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Enums\CatalogImage;
 use App\Enums\CustomOrderStatus;
 use App\Enums\DeliveryMethod;
+use App\Enums\LeaveStatus;
 use App\Enums\MoldDocument;
 use App\Enums\StaffDocument;
 use App\Enums\UserAccessLevel;
@@ -17,6 +18,7 @@ use App\Models\OrganizationMember;
 use App\Models\Product;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Support\LeaveRules;
 use App\Support\StaffAccess;
 use Carbon\Exceptions\InvalidFormatException;
 use Database\Seeders\CategoryColumnDefinitionSeeder;
@@ -30,7 +32,7 @@ use Illuminate\Support\Str;
 
 class ImportLegacyCatalog extends Command
 {
-    protected $signature = 'stockpilot:import-legacy {path : Directory with the legacy CSV exports} {--only= : Import one dataset: factories, vehicles, custom-orders, clients, visits, jobs, organizations, users, factory-orders, molds, or catalog}';
+    protected $signature = 'stockpilot:import-legacy {path : Directory with the legacy CSV exports} {--only= : Import one dataset: factories, vehicles, custom-orders, clients, visits, jobs, organizations, users, factory-orders, molds, catalog, or leaves}';
 
     protected $description = 'Import companies, categories, column layout, products, and factories from local CSV exports';
 
@@ -80,6 +82,10 @@ class ImportLegacyCatalog extends Command
 
         if ($this->option('only') === 'catalog') {
             return $this->importCatalogOnly($path);
+        }
+
+        if ($this->option('only') === 'leaves') {
+            return $this->importLeavesOnly($path);
         }
 
         foreach (['companies.csv', 'categories.csv', 'category_columns_definitions.csv', 'category_columns.csv', 'products.csv'] as $file) {
@@ -794,6 +800,91 @@ class ImportLegacyCatalog extends Command
         $this->info("Imported {$written} catalog rows.");
 
         return self::SUCCESS;
+    }
+
+    private function importLeavesOnly(string $path): int
+    {
+        $file = $path.'/leaves.csv';
+
+        if (! is_file($file)) {
+            $this->error("Missing leaves.csv in {$path}");
+
+            return self::FAILURE;
+        }
+
+        $this->info('Reading leave file.');
+        $result = $this->insertLeaves($this->csv($file));
+        $this->info("Imported {$result['written']} leave rows.");
+
+        if ($result['skipped'] > 0) {
+            $this->warn("{$result['skipped']} leave rows were skipped because the staff record or the dates are missing.");
+        }
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * @param  array<int, array<string, string|null>>  $rows
+     * @return array{written: int, skipped: int}
+     */
+    private function insertLeaves(array $rows): array
+    {
+        $existing = DB::table('leaves')->pluck('id')->map(fn ($id) => (int) $id)->flip();
+        $users = DB::table('users')->pluck('id')->map(fn ($id) => (int) $id)->flip();
+        $companies = DB::table('companies')->pluck('id')->map(fn ($id) => (int) $id)->flip();
+        $now = now();
+        $pending = [];
+        $already = 0;
+        $skipped = 0;
+
+        foreach ($rows as $row) {
+            $id = (int) ($row['id'] ?? 0);
+            $userId = (int) ($row['user_id'] ?? 0);
+            $start = $this->plainDate($row['start_date'] ?? null);
+            $return = $this->plainDate($row['return_date'] ?? null);
+            $status = LeaveStatus::tryFrom((int) ($row['status'] ?? -1));
+
+            if ($id < 1 || ! isset($users[$userId]) || $start === null || $return === null || $status === null) {
+                $skipped++;
+
+                continue;
+            }
+
+            if (isset($existing[$id])) {
+                $already++;
+
+                continue;
+            }
+
+            $companyId = (int) ($row['company_id'] ?? 0);
+            $createdAt = $this->unixTimestamp($row['time'] ?? null);
+            $pending[] = [
+                'id' => $id,
+                'company_id' => isset($companies[$companyId]) ? $companyId : null,
+                'user_id' => $userId,
+                'start_on' => $start,
+                'return_on' => $return,
+                'leave_days' => LeaveRules::dayCount(Carbon::parse($start), Carbon::parse($return)),
+                'status' => $status->value,
+                'in_office' => ($row['office'] ?? '0') === '1',
+                'created_at' => $createdAt?->toDateTimeString() ?? $now,
+                'updated_at' => $now,
+                'deleted_at' => ($row['is_deleted'] ?? '0') === '1' ? $now : null,
+            ];
+        }
+
+        $this->info('Leave rows already stored: '.$already.'. Remaining: '.count($pending).'.');
+        $written = 0;
+
+        foreach (array_chunk($pending, 100) as $chunk) {
+            DB::table('leaves')->insert($chunk);
+            $written += count($chunk);
+            $this->info("Leave rows written: {$written}");
+        }
+
+        $this->syncSequence('leaves');
+
+        return ['written' => $written, 'skipped' => $skipped];
     }
 
     /**
