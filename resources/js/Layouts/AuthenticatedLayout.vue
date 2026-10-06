@@ -116,6 +116,17 @@ const menus = computed(() => {
             ],
         },
         {
+            label: 'Günlük',
+            items: [
+                {
+                    label: 'Gelen giden',
+                    href: route('goods-flows.index'),
+                    active: route().current('goods-flows.*'),
+                    visible: allowed('goods_flows.view', 'goods_flows.manage'),
+                },
+            ],
+        },
+        {
             label: 'Ofis',
             items: [
                 {

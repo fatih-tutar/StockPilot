@@ -32,7 +32,7 @@ use Illuminate\Support\Str;
 
 class ImportLegacyCatalog extends Command
 {
-    protected $signature = 'stockpilot:import-legacy {path : Directory with the legacy CSV exports} {--only= : Import one dataset: factories, vehicles, custom-orders, clients, visits, jobs, organizations, users, factory-orders, molds, catalog, or leaves}';
+    protected $signature = 'stockpilot:import-legacy {path : Directory with the legacy CSV exports} {--only= : Import one dataset: factories, vehicles, custom-orders, clients, visits, jobs, organizations, users, factory-orders, molds, catalog, leaves, or movements}';
 
     protected $description = 'Import companies, categories, column layout, products, and factories from local CSV exports';
 
@@ -86,6 +86,10 @@ class ImportLegacyCatalog extends Command
 
         if ($this->option('only') === 'leaves') {
             return $this->importLeavesOnly($path);
+        }
+
+        if ($this->option('only') === 'movements') {
+            return $this->importMovementsOnly($path);
         }
 
         foreach (['companies.csv', 'categories.csv', 'category_columns_definitions.csv', 'category_columns.csv', 'products.csv'] as $file) {
@@ -885,6 +889,92 @@ class ImportLegacyCatalog extends Command
         $this->syncSequence('leaves');
 
         return ['written' => $written, 'skipped' => $skipped];
+    }
+
+    private function importMovementsOnly(string $path): int
+    {
+        $file = $path.'/movements.csv';
+
+        if (! is_file($file)) {
+            $this->error("Missing movements.csv in {$path}");
+
+            return self::FAILURE;
+        }
+
+        $this->info('Reading movement file.');
+        $result = $this->insertMovements($this->csv($file));
+        $this->info("Imported {$result['written']} movement rows.");
+
+        if ($result['skipped'] > 0) {
+            $this->warn("{$result['skipped']} movement rows were skipped because the date is missing.");
+        }
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * @param  array<int, array<string, string|null>>  $rows
+     * @return array{written: int, skipped: int}
+     */
+    private function insertMovements(array $rows): array
+    {
+        $existing = DB::table('goods_flows')->pluck('id')->map(fn ($id) => (int) $id)->flip();
+        $companies = DB::table('companies')->pluck('id')->map(fn ($id) => (int) $id)->flip();
+        $now = now();
+        $pending = [];
+        $already = 0;
+        $skipped = 0;
+
+        foreach ($rows as $row) {
+            $id = (int) ($row['id'] ?? 0);
+            $recordedOn = $this->plainDate($row['date'] ?? null);
+
+            if ($id < 1 || $recordedOn === null) {
+                $skipped++;
+
+                continue;
+            }
+
+            if (isset($existing[$id])) {
+                $already++;
+
+                continue;
+            }
+
+            $companyId = (int) ($row['company_id'] ?? 0);
+            $pending[] = [
+                'id' => $id,
+                'company_id' => isset($companies[$companyId]) ? $companyId : null,
+                'recorded_on' => $recordedOn,
+                'store_incoming' => $this->weight($row['incoming'] ?? null),
+                'store_outgoing' => $this->weight($row['outgoing'] ?? null),
+                'warehouse_incoming' => $this->weight($row['warehouse_incoming'] ?? null),
+                'warehouse_outgoing' => $this->weight($row['warehouse_outgoing'] ?? null),
+                'created_at' => $now,
+                'updated_at' => $now,
+                'deleted_at' => ($row['is_deleted'] ?? '0') === '1' ? $now : null,
+            ];
+        }
+
+        $this->info('Movement rows already stored: '.$already.'. Remaining: '.count($pending).'.');
+        $written = 0;
+
+        foreach (array_chunk($pending, 100) as $chunk) {
+            DB::table('goods_flows')->insert($chunk);
+            $written += count($chunk);
+            $this->info("Movement rows written: {$written}");
+        }
+
+        $this->syncSequence('goods_flows');
+
+        return ['written' => $written, 'skipped' => $skipped];
+    }
+
+    private function weight(?string $value): string
+    {
+        $value = str_replace(',', '.', trim((string) $value));
+
+        return is_numeric($value) ? $value : '0';
     }
 
     /**

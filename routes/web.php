@@ -9,6 +9,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FactoryController;
 use App\Http\Controllers\FactoryOrderController;
 use App\Http\Controllers\FactoryOrderFormController;
+use App\Http\Controllers\GoodsFlowController;
 use App\Http\Controllers\LeaveController;
 use App\Http\Controllers\MoldController;
 use App\Http\Controllers\OrganizationController;
@@ -73,6 +74,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('leaves', LeaveController::class)
         ->except(['show'])
         ->parameters(['leaves' => 'leave']);
+
+    Route::get('goods-flows/report', [GoodsFlowController::class, 'report'])->name('goods-flows.report');
+    Route::resource('goods-flows', GoodsFlowController::class)->only(['index', 'store', 'update', 'destroy']);
 
     Route::post('factory-orders/{factory_order}/receive', [FactoryOrderController::class, 'receive'])
         ->name('factory-orders.receive');
