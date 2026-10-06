@@ -139,4 +139,81 @@ class StockActivityTest extends TestCase
         $this->assertNull($warehouse->company_id);
         $this->assertSame(2, StockActivity::query()->count());
     }
+
+    public function test_the_activity_list_shows_every_product_and_can_focus_one(): void
+    {
+        Permission::findOrCreate('stock.view');
+        $user = User::factory()->create();
+        $user->givePermissionTo('stock.view');
+        $first = Product::factory()->create(['name' => 'Profil A']);
+        $second = Product::factory()->create(['name' => 'Profil B']);
+
+        StockActivity::factory()->create([
+            'product_id' => $first->id,
+            'previous_quantity' => 1,
+            'new_quantity' => 4,
+        ]);
+        StockActivity::factory()->create([
+            'product_id' => $second->id,
+            'place' => StockActivityPlace::Warehouse,
+            'previous_quantity' => 8,
+            'new_quantity' => 5,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('stock-activities.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('product', null)
+                ->where('activities.0.product.name', 'Profil B')
+                ->where('activities.0.place', 'Depo')
+                ->where('activities.0.difference', -3)
+                ->where('activities.1.product.name', 'Profil A')
+                ->where('activities', fn ($rows) => count($rows) === 2));
+
+        $this->actingAs($user)
+            ->get(route('stock-activities.index', ['product_id' => $first->id]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('product.name', 'Profil A')
+                ->where('activities', fn ($rows) => count($rows) === 1 && $rows[0]['product']['name'] === 'Profil A'));
+    }
+
+    public function test_a_company_user_does_not_see_another_companys_activities(): void
+    {
+        Permission::findOrCreate('stock.view');
+        $company = Company::factory()->create();
+        $other = Company::factory()->create();
+        $user = User::factory()->create(['company_id' => $company->id]);
+        $user->givePermissionTo('stock.view');
+        $product = Product::factory()->create();
+
+        StockActivity::factory()->create([
+            'company_id' => $company->id,
+            'product_id' => $product->id,
+            'previous_quantity' => 2,
+            'new_quantity' => 3,
+        ]);
+        StockActivity::factory()->create([
+            'company_id' => $other->id,
+            'product_id' => $product->id,
+            'previous_quantity' => 20,
+            'new_quantity' => 30,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('stock-activities.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('activities', fn ($rows) => count($rows) === 1 && $rows[0]['difference'] === 1));
+    }
+
+    public function test_the_activity_list_requires_stock_access(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->get(route('stock-activities.index'))
+            ->assertForbidden();
+    }
 }

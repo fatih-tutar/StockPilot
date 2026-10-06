@@ -330,9 +330,18 @@ const destroyProduct = () => {
                     </div>
 
                     <div class="bg-white p-6 shadow-sm sm:rounded-lg">
-                        <h3 class="mb-4 text-lg font-medium text-gray-900">
-                            Son hareketler
-                        </h3>
+                        <div class="mb-4 flex items-center justify-between gap-3">
+                            <h3 class="text-lg font-medium text-gray-900">
+                                Son hareketler
+                            </h3>
+                            <Link
+                                v-if="product"
+                                :href="route('stock-activities.index', { product_id: product.id })"
+                                class="text-sm text-indigo-700 hover:text-indigo-900"
+                            >
+                                Tüm işlemler
+                            </Link>
+                        </div>
                         <ul class="space-y-3 text-sm">
                             <li
                                 v-for="activity in activities"

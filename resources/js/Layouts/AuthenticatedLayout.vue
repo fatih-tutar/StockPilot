@@ -33,6 +33,12 @@ const menus = computed(() => {
                     visible: allowed('stock.view', 'stock.manage'),
                 },
                 {
+                    label: 'İşlemler',
+                    href: route('stock-activities.index'),
+                    active: route().current('stock-activities.*'),
+                    visible: allowed('stock.view', 'stock.manage'),
+                },
+                {
                     label: 'Kategoriler',
                     href: route('categories.index'),
                     active: route().current('categories.*'),

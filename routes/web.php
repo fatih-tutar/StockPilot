@@ -18,6 +18,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\QuoteController;
 use App\Http\Controllers\ShipmentController;
 use App\Http\Controllers\StaffController;
+use App\Http\Controllers\StockActivityController;
 use App\Http\Controllers\VehicleController;
 use App\Http\Controllers\WorkTaskController;
 use Illuminate\Support\Facades\Route;
@@ -46,6 +47,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     ]);
 
     Route::resource('products', ProductController::class)->except(['show']);
+    Route::get('stock-activities', [StockActivityController::class, 'index'])->name('stock-activities.index');
     Route::post('products/{product}/adjust-stock', [ProductController::class, 'adjust'])
         ->name('products.adjust-stock');
 
