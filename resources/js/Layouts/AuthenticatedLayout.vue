@@ -148,6 +148,12 @@ const menus = computed(() => {
                     visible: allowed('users.manage'),
                 },
                 {
+                    label: 'Roller',
+                    href: route('roles.index'),
+                    active: route().current('roles.*'),
+                    visible: allowed('users.manage'),
+                },
+                {
                     label: 'İzinler',
                     href: route('leaves.index'),
                     active: route().current('leaves.*'),

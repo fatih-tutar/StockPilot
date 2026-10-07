@@ -3,11 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Enums\StaffDocument;
-use App\Enums\UserAccessLevel;
 use App\Http\Requests\Staff\StoreStaffRequest;
 use App\Http\Requests\Staff\UpdateStaffRequest;
 use App\Models\Media;
 use App\Models\User;
+use App\Support\AccessRoles;
 use App\Support\StaffAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -16,6 +16,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
+use Spatie\Permission\Models\Role;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class StaffController extends Controller
@@ -71,6 +72,7 @@ class StaffController extends Controller
     public function store(StoreStaffRequest $request): RedirectResponse
     {
         $staff = User::query()->create($this->attributes($request));
+        $staff->syncRoles([$request->validated('access_level')]);
         $this->storeDocuments($request, $staff);
 
         return redirect()
@@ -82,7 +84,7 @@ class StaffController extends Controller
     {
         $this->authorize('view', $staff);
         $this->ensurePersonnel($staff);
-        $staff->load('media');
+        $staff->load('media', 'roles');
 
         return Inertia::render('Staff/Form', [
             'staffMember' => [
@@ -94,7 +96,9 @@ class StaffController extends Controller
                 'address' => $staff->address,
                 'title' => $staff->title,
                 'hired_on' => $staff->hired_on?->toDateString(),
-                'access_level' => $staff->access_level?->value,
+                'access_level' => $staff->roles->first()?->name
+                    ?? AccessRoles::roleFor($staff->access_level)
+                    ?? 'staff',
                 'access_flags' => StaffAccess::fromInput($staff->access_flags ?? []),
                 'is_active' => $staff->is_active,
                 'documents' => collect(StaffDocument::cases())
@@ -111,6 +115,7 @@ class StaffController extends Controller
     {
         $this->ensurePersonnel($staff);
         $staff->update($this->attributes($request));
+        $staff->syncRoles([$request->validated('access_level')]);
         $this->storeDocuments($request, $staff);
 
         return redirect()
@@ -158,7 +163,7 @@ class StaffController extends Controller
             'address' => $request->validated('address'),
             'title' => $request->validated('title'),
             'hired_on' => $request->validated('hired_on'),
-            'access_level' => $request->validated('access_level'),
+            'access_level' => AccessRoles::accessLevelFor($request->validated('access_level')),
             'access_flags' => StaffAccess::fromInput($request->validated('access_flags') ?? []),
             'is_active' => $request->boolean('is_active'),
         ];
@@ -221,10 +226,14 @@ class StaffController extends Controller
      */
     private function levels(): array
     {
-        return array_map(
-            fn (UserAccessLevel $level) => ['value' => $level->value, 'label' => $level->label()],
-            UserAccessLevel::cases(),
-        );
+        return Role::query()
+            ->orderBy('name')
+            ->get()
+            ->map(fn (Role $role) => [
+                'value' => $role->name,
+                'label' => AccessRoles::label($role->name),
+            ])
+            ->all();
     }
 
     private function personnel(): Builder

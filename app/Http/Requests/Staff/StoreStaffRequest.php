@@ -3,7 +3,6 @@
 namespace App\Http\Requests\Staff;
 
 use App\Enums\StaffDocument;
-use App\Enums\UserAccessLevel;
 use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -40,7 +39,7 @@ class StoreStaffRequest extends FormRequest
             'address' => ['nullable', 'string'],
             'title' => ['nullable', 'string', 'max:255'],
             'hired_on' => ['nullable', 'date'],
-            'access_level' => ['required', Rule::enum(UserAccessLevel::class)],
+            'access_level' => ['required', 'string', Rule::exists('roles', 'name')->where('guard_name', 'web')],
             'access_flags' => ['nullable', 'array'],
             'access_flags.*' => ['boolean'],
             'is_active' => ['sometimes', 'boolean'],

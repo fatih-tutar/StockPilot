@@ -16,6 +16,7 @@ use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\QuoteController;
+use App\Http\Controllers\RoleController;
 use App\Http\Controllers\ShipmentController;
 use App\Http\Controllers\StaffController;
 use App\Http\Controllers\StockActivityController;
@@ -108,6 +109,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('staff/{staff}/documents/{medium}', [StaffController::class, 'downloadDocument'])
         ->name('staff.documents.download');
     Route::resource('staff', StaffController::class)->except(['show']);
+    Route::get('roles', [RoleController::class, 'index'])->name('roles.index');
+    Route::post('roles', [RoleController::class, 'store'])->name('roles.store');
+    Route::put('roles/{role}', [RoleController::class, 'update'])->name('roles.update');
+    Route::delete('roles/{role}', [RoleController::class, 'destroy'])->name('roles.destroy');
 
     Route::get('organization/{organization_member}/photo', [OrganizationController::class, 'photo'])
         ->name('organization.photo');
