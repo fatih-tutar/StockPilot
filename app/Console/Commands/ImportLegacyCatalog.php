@@ -7,6 +7,8 @@ use App\Enums\CustomOrderStatus;
 use App\Enums\DeliveryMethod;
 use App\Enums\LeaveStatus;
 use App\Enums\MoldDocument;
+use App\Enums\QuoteStatus;
+use App\Enums\ShipmentStatus;
 use App\Enums\StaffDocument;
 use App\Enums\UserAccessLevel;
 use App\Enums\VehicleDocument;
@@ -32,7 +34,7 @@ use Illuminate\Support\Str;
 
 class ImportLegacyCatalog extends Command
 {
-    protected $signature = 'stockpilot:import-legacy {path : Directory with the legacy CSV exports} {--only= : Import one dataset: factories, vehicles, custom-orders, clients, visits, jobs, organizations, users, factory-orders, molds, catalog, leaves, movements, or stock-activities}';
+    protected $signature = 'stockpilot:import-legacy {path : Directory with the legacy CSV exports} {--only= : Import one dataset: factories, vehicles, custom-orders, clients, visits, jobs, organizations, users, factory-orders, molds, catalog, leaves, movements, stock-activities, quotes, or shipments}';
 
     protected $description = 'Import companies, categories, column layout, products, and factories from local CSV exports';
 
@@ -94,6 +96,14 @@ class ImportLegacyCatalog extends Command
 
         if ($this->option('only') === 'stock-activities') {
             return $this->importStockActivitiesOnly($path);
+        }
+
+        if ($this->option('only') === 'quotes') {
+            return $this->importQuotesOnly($path);
+        }
+
+        if ($this->option('only') === 'shipments') {
+            return $this->importShipmentsOnly($path);
         }
 
         foreach (['companies.csv', 'categories.csv', 'category_columns_definitions.csv', 'category_columns.csv', 'products.csv'] as $file) {
@@ -295,6 +305,18 @@ class ImportLegacyCatalog extends Command
                     $this->csv($path.'/custom_orders.csv'),
                     $this->csv($path.'/custom_order_items.csv'),
                 );
+            }
+
+            if (is_file($path.'/teklif.csv') && is_file($path.'/teklifformlari.csv')) {
+                $this->insertQuotes(
+                    $this->csv($path.'/teklifformlari.csv'),
+                    $this->csv($path.'/teklif.csv'),
+                    is_file($path.'/teklif_listesi.csv') ? $this->csv($path.'/teklif_listesi.csv') : [],
+                );
+            }
+
+            if (is_file($path.'/sevkiyat.csv')) {
+                $this->insertShipments($this->csv($path.'/sevkiyat.csv'));
             }
         });
 
@@ -1757,6 +1779,483 @@ class ImportLegacyCatalog extends Command
         return Carbon::createFromTimestamp((int) $value);
     }
 
+    private function importQuotesOnly(string $path): int
+    {
+        $linesFile = $path.'/teklif.csv';
+        $formsFile = $path.'/teklifformlari.csv';
+
+        if (! is_file($linesFile) || ! is_file($formsFile)) {
+            $this->error("Missing teklif.csv or teklifformlari.csv in {$path}");
+
+            return self::FAILURE;
+        }
+
+        $listFile = $path.'/teklif_listesi.csv';
+        $result = $this->insertQuotes(
+            $this->csv($formsFile),
+            $this->csv($linesFile),
+            is_file($listFile) ? $this->csv($listFile) : [],
+        );
+
+        $this->info("Imported {$result['quotes']} quotes and {$result['items']} quote lines.");
+
+        if ($result['skipped_client'] > 0) {
+            $this->warn("Skipped {$result['skipped_client']} quotes whose customer is not in the database.");
+        }
+
+        if ($result['skipped_user'] > 0) {
+            $this->warn('Skipped the quote import because there is no user to attach them to.');
+        }
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * @param  array<int, array<string, string|null>>  $forms
+     * @param  array<int, array<string, string|null>>  $lines
+     * @param  array<int, array<string, string|null>>  $looseOffers
+     * @return array{quotes: int, items: int, skipped_client: int, skipped_user: int}
+     */
+    private function insertQuotes(array $forms, array $lines, array $looseOffers): array
+    {
+        $empty = ['quotes' => 0, 'items' => 0, 'skipped_client' => 0, 'skipped_user' => 0];
+        $userId = DB::table('users')->orderBy('id')->value('id');
+
+        if ($userId === null) {
+            $empty['skipped_user'] = 1;
+
+            return $empty;
+        }
+
+        $clientIds = DB::table('clients')->pluck('id')->flip();
+        $clientsByName = [];
+        foreach (DB::table('clients')->select('id', 'name')->get() as $client) {
+            $clientsByName[$this->personKey((string) $client->name)] ??= (int) $client->id;
+        }
+        $productNames = DB::table('products')->pluck('name', 'id');
+        $companyIds = DB::table('companies')->pluck('id')->flip();
+        $existingIds = DB::table('quotes')->pluck('id')->flip();
+        $existingNumbers = DB::table('quotes')->pluck('number')->flip();
+        $linesById = [];
+
+        foreach ($lines as $line) {
+            $lineId = (int) ($line['teklifid'] ?? 0);
+            if ($lineId > 0) {
+                $linesById[$lineId] = $line;
+            }
+        }
+
+        $quotes = 0;
+        $items = 0;
+        $skippedClient = 0;
+        $usedLines = [];
+        $now = now();
+
+        usort($forms, fn (array $left, array $right): int => ((int) ($left['tformid'] ?? 0)) <=> ((int) ($right['tformid'] ?? 0)));
+
+        foreach ($forms as $form) {
+            $id = (int) ($form['tformid'] ?? 0);
+            $clientId = (int) ($form['firmaid'] ?? 0);
+
+            $number = 'F-'.$id;
+            $lineIds = array_values(array_filter(array_map(
+                intval(...),
+                $this->legacyList($form['tekliflistesi'] ?? null),
+            )));
+
+            if ($id === 0) {
+                continue;
+            }
+
+            if (isset($existingIds[$id]) || isset($existingNumbers[$number])) {
+                foreach ($lineIds as $lineId) {
+                    $usedLines[$lineId] = true;
+                }
+
+                continue;
+            }
+
+            if (! isset($clientIds[$clientId])) {
+                $skippedClient++;
+
+                continue;
+            }
+
+            $deleted = ($form['silik'] ?? '0') === '1';
+            $withholding = ($form['withholding'] ?? '0') === '1';
+            $taxRate = $withholding ? 6 : 20;
+            $recordedAt = $this->unixTimestamp($form['saniye'] ?? null) ?? $now;
+            $companyId = (int) ($form['sirketid'] ?? 0);
+            $itemRows = [];
+            $subtotal = 0.0;
+
+            foreach ($lineIds as $sort => $lineId) {
+                if (isset($usedLines[$lineId]) || ! isset($linesById[$lineId])) {
+                    continue;
+                }
+
+                $usedLines[$lineId] = true;
+                $line = $linesById[$lineId];
+                $productId = (int) ($line['turunid'] ?? 0);
+                $knownProduct = $productId > 0 && isset($productNames[$productId]);
+                $quantity = $this->integer($line['tadet'] ?? null);
+                $unitPrice = (float) $this->money($line['tsatisfiyati'] ?? null);
+                $lineTotal = round($quantity * $unitPrice, 2);
+                $subtotal += $lineTotal;
+                $itemRows[] = [
+                    'quote_id' => $id,
+                    'product_id' => $knownProduct ? $productId : null,
+                    'description' => $this->clip($knownProduct ? (string) $productNames[$productId] : ($productId > 0 ? 'Ürün '.$productId : 'Kalem')),
+                    'quantity_piece' => $quantity,
+                    'quantity_pallet' => 0,
+                    'unit_price' => number_format($unitPrice, 2, '.', ''),
+                    'line_total' => number_format($lineTotal, 2, '.', ''),
+                    'sort_order' => $sort,
+                    'created_at' => $recordedAt,
+                    'updated_at' => $recordedAt,
+                ];
+            }
+
+            $taxAmount = round($subtotal * $taxRate / 100, 2);
+            DB::table('quotes')->insert([
+                'id' => $id,
+                'company_id' => isset($companyIds[$companyId]) ? $companyId : null,
+                'number' => $number,
+                'client_id' => $clientId,
+                'user_id' => (int) $userId,
+                'status' => $deleted ? QuoteStatus::Cancelled->value : QuoteStatus::Sent->value,
+                'quote_date' => $recordedAt->toDateString(),
+                'valid_until' => null,
+                'currency' => 'TRY',
+                'tax_rate' => $taxRate,
+                'subtotal' => number_format($subtotal, 2, '.', ''),
+                'tax_amount' => number_format($taxAmount, 2, '.', ''),
+                'total' => number_format($subtotal + $taxAmount, 2, '.', ''),
+                'notes' => $this->blankToNull($form['explanation'] ?? null),
+                'created_at' => $recordedAt,
+                'updated_at' => $recordedAt,
+                'deleted_at' => $deleted ? $recordedAt : null,
+            ]);
+            $existingIds[$id] = true;
+            $existingNumbers[$number] = true;
+            $quotes++;
+
+            foreach (array_chunk($itemRows, 200) as $chunk) {
+                DB::table('quote_items')->insert($chunk);
+                $items += count($chunk);
+            }
+        }
+
+        $this->syncSequence('quotes');
+
+        foreach ($linesById as $lineId => $line) {
+            if (isset($usedLines[$lineId])) {
+                continue;
+            }
+
+            $clientId = (int) ($line['tverilenfirma'] ?? 0);
+            $number = 'L-'.$lineId;
+
+            if (! isset($clientIds[$clientId]) || isset($existingNumbers[$number])) {
+                if (! isset($clientIds[$clientId])) {
+                    $skippedClient++;
+                }
+
+                continue;
+            }
+
+            $deleted = ($line['silik'] ?? '0') === '1';
+            $recordedAt = $this->unixTimestamp($line['tsaniye'] ?? null) ?? $now;
+            $companyId = (int) ($line['sirketid'] ?? 0);
+            $productId = (int) ($line['turunid'] ?? 0);
+            $knownProduct = $productId > 0 && isset($productNames[$productId]);
+            $quantity = $this->integer($line['tadet'] ?? null);
+            $unitPrice = (float) $this->money($line['tsatisfiyati'] ?? null);
+            $lineTotal = round($quantity * $unitPrice, 2);
+            $taxAmount = round($lineTotal * 0.20, 2);
+            $quoteId = DB::table('quotes')->insertGetId([
+                'company_id' => isset($companyIds[$companyId]) ? $companyId : null,
+                'number' => $number,
+                'client_id' => $clientId,
+                'user_id' => (int) $userId,
+                'status' => $deleted ? QuoteStatus::Cancelled->value : QuoteStatus::Draft->value,
+                'quote_date' => $recordedAt->toDateString(),
+                'valid_until' => null,
+                'currency' => 'TRY',
+                'tax_rate' => 20,
+                'subtotal' => number_format($lineTotal, 2, '.', ''),
+                'tax_amount' => number_format($taxAmount, 2, '.', ''),
+                'total' => number_format($lineTotal + $taxAmount, 2, '.', ''),
+                'notes' => null,
+                'created_at' => $recordedAt,
+                'updated_at' => $recordedAt,
+                'deleted_at' => $deleted ? $recordedAt : null,
+            ]);
+            DB::table('quote_items')->insert([
+                'quote_id' => $quoteId,
+                'product_id' => $knownProduct ? $productId : null,
+                'description' => $this->clip($knownProduct ? (string) $productNames[$productId] : ($productId > 0 ? 'Ürün '.$productId : 'Kalem')),
+                'quantity_piece' => $quantity,
+                'quantity_pallet' => 0,
+                'unit_price' => number_format($unitPrice, 2, '.', ''),
+                'line_total' => number_format($lineTotal, 2, '.', ''),
+                'sort_order' => 0,
+                'created_at' => $recordedAt,
+                'updated_at' => $recordedAt,
+            ]);
+            $existingNumbers[$number] = true;
+            $quotes++;
+            $items++;
+        }
+
+        foreach ($looseOffers as $offer) {
+            $offerId = (int) ($offer['teklifid'] ?? 0);
+            $number = 'TL-'.$offerId;
+            $clientId = $clientsByName[$this->personKey((string) ($offer['musteri'] ?? ''))] ?? null;
+
+            if ($offerId === 0 || isset($existingNumbers[$number])) {
+                continue;
+            }
+
+            if ($clientId === null) {
+                $skippedClient++;
+
+                continue;
+            }
+
+            $recordedAt = $this->plainDate($offer['tarih'] ?? null);
+            $quoteDate = $recordedAt ?? $now->toDateString();
+            $stamp = $recordedAt === null ? $now : Carbon::parse($recordedAt);
+            $archived = ($offer['silik'] ?? '0') !== '0';
+            $unitPrice = (float) $this->money($offer['fiyat'] ?? null);
+            $lineTotal = round($unitPrice, 2);
+            $taxAmount = round($lineTotal * 0.20, 2);
+            $notes = array_values(array_filter([
+                $this->blankToNull($offer['aciklama'] ?? null),
+                $this->blankToNull($offer['ilgilikisi'] ?? null),
+                $this->blankToNull($offer['fabrika'] ?? null),
+                ($offer['fabrikafiyat'] ?? '') !== '' ? 'Fabrika fiyatı: '.$offer['fabrikafiyat'] : null,
+                $this->blankToNull($offer['teklifveren'] ?? null),
+            ]));
+            $quoteId = DB::table('quotes')->insertGetId([
+                'company_id' => null,
+                'number' => $number,
+                'client_id' => (int) $clientId,
+                'user_id' => (int) $userId,
+                'status' => $archived ? QuoteStatus::Accepted->value : QuoteStatus::Sent->value,
+                'quote_date' => $quoteDate,
+                'valid_until' => null,
+                'currency' => 'TRY',
+                'tax_rate' => 20,
+                'subtotal' => number_format($lineTotal, 2, '.', ''),
+                'tax_amount' => number_format($taxAmount, 2, '.', ''),
+                'total' => number_format($lineTotal + $taxAmount, 2, '.', ''),
+                'notes' => $notes === [] ? null : implode("\n", $notes),
+                'created_at' => $stamp,
+                'updated_at' => $stamp,
+                'deleted_at' => null,
+            ]);
+            DB::table('quote_items')->insert([
+                'quote_id' => $quoteId,
+                'product_id' => null,
+                'description' => $this->clip($this->blankToNull($offer['urunmiktar'] ?? null) ?? 'Kalem'),
+                'quantity_piece' => 1,
+                'quantity_pallet' => 0,
+                'unit_price' => number_format($unitPrice, 2, '.', ''),
+                'line_total' => number_format($lineTotal, 2, '.', ''),
+                'sort_order' => 0,
+                'created_at' => $stamp,
+                'updated_at' => $stamp,
+            ]);
+            $existingNumbers[$number] = true;
+            $quotes++;
+            $items++;
+        }
+
+        $this->syncSequence('quotes');
+        $this->syncSequence('quote_items');
+
+        return [
+            'quotes' => $quotes,
+            'items' => $items,
+            'skipped_client' => $skippedClient,
+            'skipped_user' => 0,
+        ];
+    }
+
+    private function importShipmentsOnly(string $path): int
+    {
+        $file = $path.'/sevkiyat.csv';
+
+        if (! is_file($file)) {
+            $this->error("Missing sevkiyat.csv in {$path}");
+
+            return self::FAILURE;
+        }
+
+        $result = $this->insertShipments($this->csv($file));
+        $this->info("Imported {$result['shipments']} shipments and {$result['items']} shipment lines.");
+
+        if ($result['skipped_client'] > 0) {
+            $this->warn("Skipped {$result['skipped_client']} shipments whose customer is not in the database.");
+        }
+
+        if ($result['skipped_user'] > 0) {
+            $this->warn('Skipped the shipment import because there is no user to attach them to.');
+        }
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * @param  array<int, array<string, string|null>>  $rows
+     * @return array{shipments: int, items: int, skipped_client: int, skipped_user: int}
+     */
+    private function insertShipments(array $rows): array
+    {
+        $empty = ['shipments' => 0, 'items' => 0, 'skipped_client' => 0, 'skipped_user' => 0];
+        $userId = DB::table('users')->orderBy('id')->value('id');
+
+        if ($userId === null) {
+            $empty['skipped_user'] = 1;
+
+            return $empty;
+        }
+
+        $userIds = DB::table('users')->pluck('id')->flip();
+        $clientIds = DB::table('clients')->pluck('id')->flip();
+        $productNames = DB::table('products')->pluck('name', 'id');
+        $companyIds = DB::table('companies')->pluck('id')->flip();
+        $vehicles = DB::table('vehicles')->get(['id', 'license_plate', 'driver_name'])->keyBy('id');
+        $existingIds = DB::table('shipments')->pluck('id')->flip();
+        $existingNumbers = DB::table('shipments')->pluck('number')->flip();
+        $deliveryLabels = [
+            '0' => 'Müşteri Çağlayan',
+            '1' => 'Müşteri Alkop',
+            '2' => 'Tarafımızca sevk',
+            '3' => 'Ambara tarafımızca sevk',
+            '4' => 'Kargo teslim',
+        ];
+        $shipments = 0;
+        $items = 0;
+        $skippedClient = 0;
+        $now = now();
+
+        foreach ($rows as $row) {
+            $id = (int) ($row['id'] ?? 0);
+            $clientId = (int) ($row['firma_id'] ?? 0);
+
+            if ($id === 0 || isset($existingIds[$id])) {
+                continue;
+            }
+
+            if (! isset($clientIds[$clientId])) {
+                $skippedClient++;
+
+                continue;
+            }
+
+            $number = 'SV-'.$id;
+            if (isset($existingNumbers[$number])) {
+                continue;
+            }
+
+            $creatorId = (int) ($row['olusturan'] ?? 0);
+            $ownerId = isset($userIds[$creatorId]) ? $creatorId : (int) $userId;
+            $deleted = ($row['silik'] ?? '0') === '1';
+            $recordedAt = $this->unixTimestamp($row['saniye'] ?? null) ?? $now;
+            $companyId = (int) ($row['sirket_id'] ?? 0);
+            $vehicle = $vehicles->get((int) ($row['arac_id'] ?? 0));
+            $delivery = $deliveryLabels[$row['sevk_tipi'] ?? ''] ?? null;
+            $notes = array_values(array_filter([
+                $this->blankToNull($row['aciklama'] ?? null),
+                $delivery,
+                ($row['manuel'] ?? '0') === '1' ? 'Manuel kayıt' : null,
+                ($row['durum'] ?? '') === '1' ? 'Hazırlanıyor' : null,
+                $this->blankToNull($row['kilolar'] ?? null) !== null ? 'Kilo: '.trim((string) $row['kilolar']) : null,
+            ]));
+            $status = match ($row['durum'] ?? '0') {
+                '2', '3' => ShipmentStatus::Delivered->value,
+                default => ShipmentStatus::Scheduled->value,
+            };
+            $productIds = $this->legacyList($row['urunler'] ?? null);
+            $quantities = $this->legacyList($row['adetler'] ?? null);
+            $prices = $this->legacyList($row['fiyatlar'] ?? null, '-');
+            $itemRows = [];
+
+            foreach ($productIds as $sort => $productValue) {
+                $productId = (int) $productValue;
+                $knownProduct = $productId > 0 && isset($productNames[$productId]);
+                $price = trim((string) ($prices[$sort] ?? ''));
+                $name = $knownProduct ? (string) $productNames[$productId] : ($productId > 0 ? 'Ürün '.$productId : 'Kalem');
+                $itemRows[] = [
+                    'shipment_id' => $id,
+                    'product_id' => $knownProduct ? $productId : null,
+                    'description' => $this->clip($price === '' ? $name : $name.' · '.$price.' TL'),
+                    'quantity_piece' => $this->integer($quantities[$sort] ?? null),
+                    'quantity_pallet' => 0,
+                    'sort_order' => $sort,
+                    'created_at' => $recordedAt,
+                    'updated_at' => $recordedAt,
+                ];
+            }
+
+            DB::table('shipments')->insert([
+                'id' => $id,
+                'company_id' => isset($companyIds[$companyId]) ? $companyId : null,
+                'number' => $number,
+                'client_id' => $clientId,
+                'quote_id' => null,
+                'user_id' => $ownerId,
+                'status' => $deleted ? ShipmentStatus::Cancelled->value : $status,
+                'ship_date' => $recordedAt->toDateString(),
+                'delivery_date' => null,
+                'vehicle_plate' => $vehicle?->license_plate,
+                'driver_name' => $vehicle?->driver_name,
+                'shipping_address' => null,
+                'notes' => $notes === [] ? null : implode("\n", $notes),
+                'created_at' => $recordedAt,
+                'updated_at' => $recordedAt,
+                'deleted_at' => $deleted ? $recordedAt : null,
+            ]);
+            $existingIds[$id] = true;
+            $existingNumbers[$number] = true;
+            $shipments++;
+
+            foreach (array_chunk($itemRows, 200) as $chunk) {
+                DB::table('shipment_items')->insert($chunk);
+                $items += count($chunk);
+            }
+        }
+
+        $this->syncSequence('shipments');
+        $this->syncSequence('shipment_items');
+
+        return [
+            'shipments' => $shipments,
+            'items' => $items,
+            'skipped_client' => $skippedClient,
+            'skipped_user' => 0,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function legacyList(?string $value, string $separator = ','): array
+    {
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return [];
+        }
+
+        return array_values(array_filter(array_map(
+            trim(...),
+            explode($separator, $value),
+        ), fn (string $part) => $part !== ''));
+    }
+
     private function syncSequence(string $table): void
     {
         if (DB::getDriverName() !== 'pgsql') {
@@ -2127,6 +2626,11 @@ class ImportLegacyCatalog extends Command
         fclose($handle);
 
         return $rows;
+    }
+
+    private function clip(string $value): string
+    {
+        return mb_substr($value, 0, 255);
     }
 
     private function blankToNull(?string $value): ?string
