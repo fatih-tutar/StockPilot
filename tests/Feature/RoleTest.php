@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\UserAccessLevel;
+use App\Models\Product;
 use App\Models\User;
 use App\Support\AccessRoles;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -83,6 +84,44 @@ class RoleTest extends TestCase
             ->assertRedirect(route('roles.index'));
 
         $this->assertNull(Role::query()->where('name', 'Depo')->first());
+    }
+
+    public function test_product_list_hides_quantities_the_screen_flags_leave_off(): void
+    {
+        Product::factory()->create([
+            'name' => 'Deneme profil',
+            'quantity_piece' => 12,
+            'quantity_pallet' => 3,
+        ]);
+        $hidden = User::factory()->create([
+            'access_level' => UserAccessLevel::Staff,
+            'access_flags' => [
+                'piece_quantity' => false,
+                'pallet_quantity' => false,
+            ],
+        ]);
+        $pieceOnly = User::factory()->create([
+            'access_level' => UserAccessLevel::Staff,
+            'access_flags' => [
+                'piece_quantity' => true,
+                'pallet_quantity' => false,
+            ],
+        ]);
+
+        $this->actingAs($hidden)
+            ->get(route('products.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('products.data.0.name', 'Deneme profil')
+                ->where('products.data.0.quantity_piece', null)
+                ->where('products.data.0.quantity_pallet', null));
+
+        $this->actingAs($pieceOnly)
+            ->get(route('products.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('products.data.0.quantity_piece', 12)
+                ->where('products.data.0.quantity_pallet', null));
     }
 
     public function test_user_without_staff_permission_cannot_open_roles(): void

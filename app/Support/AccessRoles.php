@@ -80,6 +80,32 @@ class AccessRoles
     }
 
     /**
+     * Column gates from the old screen flags. Managers see every column.
+     *
+     * @return array{piece: bool, pallet: bool, alkop: bool, purchase: bool, sale: bool}
+     */
+    public static function visibleColumns(User $user): array
+    {
+        $flags = $user->access_flags ?? [];
+        $seesAll = $user->hasRole('admin') || $user->access_level === UserAccessLevel::Manager;
+        $enabled = function (string $key) use ($flags, $seesAll): bool {
+            if ($seesAll) {
+                return true;
+            }
+
+            return filter_var($flags[$key] ?? false, FILTER_VALIDATE_BOOLEAN);
+        };
+
+        return [
+            'piece' => $enabled('piece_quantity'),
+            'pallet' => $enabled('pallet_quantity'),
+            'alkop' => $enabled('alkop'),
+            'purchase' => $enabled('purchase'),
+            'sale' => $enabled('sale_price'),
+        ];
+    }
+
+    /**
      * @return list<array{label: string, permissions: list<array{name: string, label: string}>}>
      */
     public static function permissionGroups(): array
@@ -149,12 +175,8 @@ class AccessRoles
         }
 
         Role::findOrCreate('admin');
-        $staff = Role::findOrCreate('staff');
-        $supervisor = Role::findOrCreate('supervisor');
-
-        if ($supervisor->permissions()->doesntExist() && $staff->permissions()->exists()) {
-            $supervisor->syncPermissions($staff->permissions);
-        }
+        Role::findOrCreate('staff');
+        Role::findOrCreate('supervisor');
 
         User::query()->orderBy('id')->each(function (User $user): void {
             $role = self::roleFor($user->access_level);

@@ -15,6 +15,7 @@ const props = defineProps({
 
 const page = usePage();
 const user = computed(() => page.props.auth.user);
+const columns = computed(() => page.props.auth?.user?.columns ?? {});
 
 const formatMoney = (amount, currency = 'TRY') =>
     new Intl.NumberFormat('tr-TR', {
@@ -145,11 +146,11 @@ const movementTypeLabel = (type) => {
                                         · eşik {{ product.low_stock_threshold }}
                                     </p>
                                 </div>
-                                <div class="text-right">
-                                    <p class="font-medium text-amber-800">
+                                <div v-if="columns.piece || columns.pallet" class="text-right">
+                                    <p v-if="columns.piece" class="font-medium text-amber-800">
                                         {{ product.quantity_piece }} adet
                                     </p>
-                                    <p class="text-xs text-gray-500">
+                                    <p v-if="columns.pallet" class="text-xs text-gray-500">
                                         {{ product.quantity_pallet }} palet
                                     </p>
                                 </div>
@@ -322,8 +323,9 @@ const movementTypeLabel = (type) => {
                                     </p>
                                 </div>
                                 <p class="mt-1 text-xs text-gray-500">
-                                    adet {{ movement.quantity_piece_delta }}
-                                    · palet {{ movement.quantity_pallet_delta }}
+                                    <span v-if="columns.piece">adet {{ movement.quantity_piece_delta }}</span>
+                                    <span v-if="columns.piece && columns.pallet"> · </span>
+                                    <span v-if="columns.pallet">palet {{ movement.quantity_pallet_delta }}</span>
                                     <span v-if="movement.user_name">
                                         · {{ movement.user_name }}
                                     </span>

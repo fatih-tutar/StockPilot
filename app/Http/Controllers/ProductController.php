@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Stock\AdjustProductStock;
+use App\Enums\StockActivityPlace;
 use App\Http\Requests\Catalog\AdjustStockRequest;
 use App\Http\Requests\Catalog\StoreProductRequest;
 use App\Http\Requests\Catalog\UpdateProductRequest;
@@ -11,6 +12,7 @@ use App\Models\MoldNumber;
 use App\Models\Product;
 use App\Models\StockActivity;
 use App\Models\StockMovement;
+use App\Support\AccessRoles;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -26,6 +28,7 @@ class ProductController extends Controller
 
         $search = $request->string('search')->trim()->toString();
         $categoryId = $request->integer('category_id') ?: null;
+        $columns = AccessRoles::visibleColumns($request->user());
 
         $products = Product::query()
             ->with('category:id,name')
@@ -43,8 +46,8 @@ class ProductController extends Controller
                 'id' => $product->id,
                 'sku' => $product->sku,
                 'name' => $product->name,
-                'quantity_piece' => $product->quantity_piece,
-                'quantity_pallet' => $product->quantity_pallet,
+                'quantity_piece' => $columns['piece'] ? $product->quantity_piece : null,
+                'quantity_pallet' => $columns['pallet'] ? $product->quantity_pallet : null,
                 'low_stock_threshold' => $product->low_stock_threshold,
                 'is_low_stock' => $product->isLowStock(),
                 'is_active' => $product->is_active,
@@ -90,6 +93,7 @@ class ProductController extends Controller
     {
         $this->authorize('view', $product);
 
+        $columns = AccessRoles::visibleColumns($request->user());
         $product->load(['category:id,name', 'sourceFactory:id,name']);
         $moldNumber = $product->factory_id === null
             ? null
@@ -98,8 +102,16 @@ class ProductController extends Controller
                 ->where('factory_id', $product->factory_id)
                 ->value('number');
 
+        $places = array_values(array_filter([
+            $columns['piece'] ? StockActivityPlace::Store->value : null,
+            $columns['pallet'] ? StockActivityPlace::Pallet->value : null,
+            $columns['alkop'] ? StockActivityPlace::Warehouse->value : null,
+        ], fn ($place) => $place !== null));
+
         $activities = $product->stockActivities()
             ->with('user:id,name')
+            ->when($places !== [], fn ($query) => $query->whereIn('place', $places))
+            ->when($places === [], fn ($query) => $query->whereRaw('0 = 1'))
             ->latest('recorded_at')
             ->latest('id')
             ->limit(20)
@@ -122,8 +134,8 @@ class ProductController extends Controller
                 'sku' => $product->sku,
                 'name' => $product->name,
                 'description' => $product->description,
-                'quantity_piece' => $product->quantity_piece,
-                'quantity_pallet' => $product->quantity_pallet,
+                'quantity_piece' => $columns['piece'] ? $product->quantity_piece : null,
+                'quantity_pallet' => $columns['pallet'] ? $product->quantity_pallet : null,
                 'low_stock_threshold' => $product->low_stock_threshold,
                 'is_active' => $product->is_active,
                 'is_low_stock' => $product->isLowStock(),

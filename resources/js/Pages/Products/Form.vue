@@ -17,6 +17,8 @@ const props = defineProps({
 });
 
 const page = usePage();
+const columns = computed(() => page.props.auth?.user?.columns ?? {});
+const seesStockNumbers = computed(() => columns.value.piece || columns.value.pallet || columns.value.alkop);
 const flashSuccess = computed(() => page.props.flash?.success);
 const canOrder = computed(() => {
     const permissions = page.props.auth?.user?.permissions || [];
@@ -191,7 +193,7 @@ const destroyProduct = () => {
                             />
                             <InputError class="mt-2" :message="form.errors.low_stock_threshold" />
                         </div>
-                        <div v-if="!isEdit">
+                        <div v-if="!isEdit && columns.piece">
                             <InputLabel for="quantity_piece" value="Açılış adet" />
                             <TextInput
                                 id="quantity_piece"
@@ -202,7 +204,7 @@ const destroyProduct = () => {
                             />
                             <InputError class="mt-2" :message="form.errors.quantity_piece" />
                         </div>
-                        <div v-if="!isEdit">
+                        <div v-if="!isEdit && columns.pallet">
                             <InputLabel for="quantity_pallet" value="Açılış palet" />
                             <TextInput
                                 id="quantity_pallet"
@@ -263,18 +265,23 @@ const destroyProduct = () => {
                     v-if="isEdit"
                     class="grid gap-6 lg:grid-cols-2"
                 >
-                    <div class="bg-white p-6 shadow-sm sm:rounded-lg">
+                    <div v-if="seesStockNumbers || canManage" class="bg-white p-6 shadow-sm sm:rounded-lg">
                         <h3 class="mb-2 text-lg font-medium text-gray-900">
                             Güncel stok
                         </h3>
-                        <p class="text-sm text-gray-600">
-                            Adet:
-                            <span class="font-semibold text-gray-900">
-                                {{ product.quantity_piece }}
+                        <p v-if="seesStockNumbers" class="text-sm text-gray-600">
+                            <span v-if="columns.piece">
+                                Adet:
+                                <span class="font-semibold text-gray-900">
+                                    {{ product.quantity_piece }}
+                                </span>
                             </span>
-                            · Palet:
-                            <span class="font-semibold text-gray-900">
-                                {{ product.quantity_pallet }}
+                            <span v-if="columns.pallet">
+                                <span v-if="columns.piece"> · </span>
+                                Palet:
+                                <span class="font-semibold text-gray-900">
+                                    {{ product.quantity_pallet }}
+                                </span>
                             </span>
                             <span
                                 v-if="product.is_low_stock"
@@ -291,8 +298,9 @@ const destroyProduct = () => {
                         >
                             <div class="grid gap-3 sm:grid-cols-2">
                                 <div>
-                                    <InputLabel value="Adet farkı (+/-)" />
+                                    <InputLabel v-if="columns.piece" value="Adet farkı (+/-)" />
                                     <TextInput
+                                        v-if="columns.piece"
                                         v-model="adjustForm.quantity_piece_delta"
                                         type="number"
                                         class="mt-1 block w-full"
@@ -303,8 +311,9 @@ const destroyProduct = () => {
                                     />
                                 </div>
                                 <div>
-                                    <InputLabel value="Palet farkı (+/-)" />
+                                    <InputLabel v-if="columns.pallet" value="Palet farkı (+/-)" />
                                     <TextInput
+                                        v-if="columns.pallet"
                                         v-model="adjustForm.quantity_pallet_delta"
                                         type="number"
                                         class="mt-1 block w-full"
@@ -329,7 +338,7 @@ const destroyProduct = () => {
                         </form>
                     </div>
 
-                    <div class="bg-white p-6 shadow-sm sm:rounded-lg">
+                    <div v-if="seesStockNumbers" class="bg-white p-6 shadow-sm sm:rounded-lg">
                         <div class="mb-4 flex items-center justify-between gap-3">
                             <h3 class="text-lg font-medium text-gray-900">
                                 Son hareketler

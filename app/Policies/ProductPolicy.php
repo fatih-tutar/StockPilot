@@ -9,7 +9,7 @@ class ProductPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->can('stock.view') || $user->can('stock.manage');
+        return true;
     }
 
     public function view(User $user, Product $product): bool

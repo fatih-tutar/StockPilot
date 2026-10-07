@@ -30,7 +30,7 @@ const menus = computed(() => {
                     label: 'Ürünler',
                     href: route('products.index'),
                     active: route().current('products.*'),
-                    visible: allowed('stock.view', 'stock.manage'),
+                    visible: true,
                 },
                 {
                     label: 'İşlemler',

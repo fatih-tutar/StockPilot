@@ -11,6 +11,7 @@ use App\Models\Quote;
 use App\Models\Shipment;
 use App\Models\StockMovement;
 use App\Models\WorkTask;
+use App\Support\AccessRoles;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -22,6 +23,7 @@ class DashboardController extends Controller
         $user = $request->user();
 
         $canViewStock = $user->can('stock.view') || $user->can('stock.manage');
+        $columns = AccessRoles::visibleColumns($user);
         $canViewClients = $user->can('clients.view') || $user->can('clients.manage');
         $canViewQuotes = $user->can('quotes.view') || $user->can('quotes.manage');
         $canViewShipments = $user->can('shipments.view') || $user->can('shipments.manage');
@@ -61,8 +63,8 @@ class DashboardController extends Controller
                         'id' => $product->id,
                         'name' => $product->name,
                         'sku' => $product->sku,
-                        'quantity_piece' => $product->quantity_piece,
-                        'quantity_pallet' => $product->quantity_pallet,
+                        'quantity_piece' => $columns['piece'] ? $product->quantity_piece : null,
+                        'quantity_pallet' => $columns['pallet'] ? $product->quantity_pallet : null,
                         'low_stock_threshold' => $product->low_stock_threshold,
                     ])
                     ->values()
@@ -114,8 +116,8 @@ class DashboardController extends Controller
                     ->map(fn (StockMovement $movement) => [
                         'id' => $movement->id,
                         'type' => $movement->type,
-                        'quantity_piece_delta' => $movement->quantity_piece_delta,
-                        'quantity_pallet_delta' => $movement->quantity_pallet_delta,
+                        'quantity_piece_delta' => $columns['piece'] ? $movement->quantity_piece_delta : null,
+                        'quantity_pallet_delta' => $columns['pallet'] ? $movement->quantity_pallet_delta : null,
                         'note' => $movement->note,
                         'created_at' => $movement->created_at?->toDateTimeString(),
                         'product_name' => $movement->product?->name,

@@ -14,6 +14,7 @@ const props = defineProps({
 });
 
 const page = usePage();
+const columns = computed(() => page.props.auth?.user?.columns ?? {});
 const flashSuccess = computed(() => page.props.flash?.success);
 const flashError = computed(() => page.props.flash?.error);
 
@@ -108,8 +109,8 @@ watch(
                             <tr>
                                 <th class="px-4 py-3 text-left font-medium text-gray-600">Ürün</th>
                                 <th class="px-4 py-3 text-left font-medium text-gray-600">Kategori</th>
-                                <th class="px-4 py-3 text-left font-medium text-gray-600">Adet</th>
-                                <th class="px-4 py-3 text-left font-medium text-gray-600">Palet</th>
+                                <th v-if="columns.piece" class="px-4 py-3 text-left font-medium text-gray-600">Adet</th>
+                                <th v-if="columns.pallet" class="px-4 py-3 text-left font-medium text-gray-600">Palet</th>
                                 <th class="px-4 py-3 text-left font-medium text-gray-600">Durum</th>
                                 <th class="px-4 py-3 text-right font-medium text-gray-600">İşlemler</th>
                             </tr>
@@ -127,10 +128,10 @@ watch(
                                 <td class="px-4 py-3 text-gray-700">
                                     {{ product.category?.name || '—' }}
                                 </td>
-                                <td class="px-4 py-3 text-gray-700">
+                                <td v-if="columns.piece" class="px-4 py-3 text-gray-700">
                                     {{ product.quantity_piece }}
                                 </td>
-                                <td class="px-4 py-3 text-gray-700">
+                                <td v-if="columns.pallet" class="px-4 py-3 text-gray-700">
                                     {{ product.quantity_pallet }}
                                 </td>
                                 <td class="px-4 py-3">
@@ -163,7 +164,7 @@ watch(
                                 </td>
                             </tr>
                             <tr v-if="products.data.length === 0">
-                                <td colspan="6" class="px-4 py-8 text-center text-gray-500">
+                                <td :colspan="4 + (columns.piece ? 1 : 0) + (columns.pallet ? 1 : 0)" class="px-4 py-8 text-center text-gray-500">
                                     Ürün bulunamadı.
                                 </td>
                             </tr>
