@@ -34,7 +34,7 @@ use Illuminate\Support\Str;
 
 class ImportLegacyCatalog extends Command
 {
-    protected $signature = 'stockpilot:import-legacy {path : Directory with the legacy CSV exports} {--only= : Import one dataset: factories, vehicles, custom-orders, clients, visits, jobs, organizations, users, factory-orders, molds, catalog, leaves, movements, stock-activities, quotes, or shipments}';
+    protected $signature = 'stockpilot:import-legacy {path : Directory with the legacy CSV exports} {--only= : Import one dataset: factories, vehicles, custom-orders, clients, visits, jobs, organizations, users, factory-orders, molds, catalog, leaves, movements, stock-activities, quotes, shipments, or inventories}';
 
     protected $description = 'Import companies, categories, column layout, products, and factories from local CSV exports';
 
@@ -104,6 +104,10 @@ class ImportLegacyCatalog extends Command
 
         if ($this->option('only') === 'shipments') {
             return $this->importShipmentsOnly($path);
+        }
+
+        if ($this->option('only') === 'inventories') {
+            return $this->importInventoriesOnly($path);
         }
 
         foreach (['companies.csv', 'categories.csv', 'category_columns_definitions.csv', 'category_columns.csv', 'products.csv'] as $file) {
@@ -317,6 +321,10 @@ class ImportLegacyCatalog extends Command
 
             if (is_file($path.'/sevkiyat.csv')) {
                 $this->insertShipments($this->csv($path.'/sevkiyat.csv'));
+            }
+
+            if (is_file($path.'/inventories.csv')) {
+                $this->insertInventories($this->csv($path.'/inventories.csv'));
             }
         });
 
@@ -2239,6 +2247,83 @@ class ImportLegacyCatalog extends Command
         ];
     }
 
+    private function importInventoriesOnly(string $path): int
+    {
+        $file = $path.'/inventories.csv';
+
+        if (! is_file($file)) {
+            $this->error("Missing inventories.csv in {$path}");
+
+            return self::FAILURE;
+        }
+
+        $result = $this->insertInventories($this->csv($file));
+        $this->info("Imported {$result['written']} inventory rows.");
+
+        if ($result['skipped'] > 0) {
+            $this->warn("Skipped {$result['skipped']} inventory rows whose category is not in the database.");
+        }
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * @param  array<int, array<string, string|null>>  $rows
+     * @return array{written: int, skipped: int}
+     */
+    private function insertInventories(array $rows): array
+    {
+        $categoryIds = DB::table('categories')->pluck('id')->flip();
+        $companyIds = DB::table('companies')->pluck('id')->flip();
+        $existingIds = DB::table('inventories')->pluck('id')->flip();
+        $written = 0;
+        $skipped = 0;
+        $now = now();
+        $pending = [];
+
+        foreach ($rows as $row) {
+            $id = (int) ($row['id'] ?? 0);
+            $categoryId = (int) ($row['category_id'] ?? 0);
+
+            if ($id === 0 || isset($existingIds[$id])) {
+                continue;
+            }
+
+            if (! isset($categoryIds[$categoryId])) {
+                $skipped++;
+
+                continue;
+            }
+
+            $companyId = (int) ($row['company_id'] ?? 0);
+            $deleted = ($row['is_deleted'] ?? '0') === '1';
+            $pending[] = [
+                'id' => $id,
+                'company_id' => isset($companyIds[$companyId]) ? $companyId : null,
+                'category_id' => $categoryId,
+                'code' => $this->limited($row['code'] ?? null, 32),
+                'dimension_1' => $this->limited($row['dimension_1'] ?? null, 32),
+                'dimension_2' => $this->limited($row['dimension_2'] ?? null, 32),
+                'dimension_3' => $this->limited($row['dimension_3'] ?? null, 32),
+                'density' => $this->limited($row['density'] ?? null, 32),
+                'factory_name' => $this->limited($row['factory_name'] ?? null, 64),
+                'created_at' => $now,
+                'updated_at' => $now,
+                'deleted_at' => $deleted ? $now : null,
+            ];
+            $existingIds[$id] = true;
+        }
+
+        foreach (array_chunk($pending, 200) as $chunk) {
+            DB::table('inventories')->insert($chunk);
+            $written += count($chunk);
+        }
+
+        $this->syncSequence('inventories');
+
+        return ['written' => $written, 'skipped' => $skipped];
+    }
+
     /**
      * @return list<string>
      */
@@ -2631,6 +2716,17 @@ class ImportLegacyCatalog extends Command
     private function clip(string $value): string
     {
         return mb_substr($value, 0, 255);
+    }
+
+    private function limited(?string $value, int $length): ?string
+    {
+        $value = $this->blankToNull($value);
+
+        if ($value === null) {
+            return null;
+        }
+
+        return mb_substr($value, 0, $length);
     }
 
     private function blankToNull(?string $value): ?string

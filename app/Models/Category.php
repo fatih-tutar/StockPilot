@@ -55,6 +55,11 @@ class Category extends Model
         return $this->hasMany(Product::class);
     }
 
+    public function inventories(): HasMany
+    {
+        return $this->hasMany(Inventory::class);
+    }
+
     public function columnDefinitions(): BelongsToMany
     {
         return $this->belongsToMany(CategoryColumnDefinition::class, 'category_columns')
