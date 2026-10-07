@@ -1798,6 +1798,9 @@ class ImportLegacyCatalog extends Command
             return self::FAILURE;
         }
 
+        stream_set_write_buffer(STDOUT, 0);
+        $this->info('Reading quote files.');
+
         $listFile = $path.'/teklif_listesi.csv';
         $result = $this->insertQuotes(
             $this->csv($formsFile),
@@ -1857,6 +1860,8 @@ class ImportLegacyCatalog extends Command
         $items = 0;
         $skippedClient = 0;
         $usedLines = [];
+        $quoteBatch = [];
+        $itemBatch = [];
         $now = now();
 
         usort($forms, fn (array $left, array $right): int => ((int) ($left['tformid'] ?? 0)) <=> ((int) ($right['tformid'] ?? 0)));
@@ -1925,7 +1930,7 @@ class ImportLegacyCatalog extends Command
             }
 
             $taxAmount = round($subtotal * $taxRate / 100, 2);
-            DB::table('quotes')->insert([
+            $quoteBatch[] = [
                 'id' => $id,
                 'company_id' => isset($companyIds[$companyId]) ? $companyId : null,
                 'number' => $number,
@@ -1943,15 +1948,26 @@ class ImportLegacyCatalog extends Command
                 'created_at' => $recordedAt,
                 'updated_at' => $recordedAt,
                 'deleted_at' => $deleted ? $recordedAt : null,
-            ]);
+            ];
+            array_push($itemBatch, ...$itemRows);
             $existingIds[$id] = true;
             $existingNumbers[$number] = true;
             $quotes++;
+            $items += count($itemRows);
 
-            foreach (array_chunk($itemRows, 200) as $chunk) {
-                DB::table('quote_items')->insert($chunk);
-                $items += count($chunk);
+            if (count($quoteBatch) >= 100) {
+                $this->writeInChunks('quotes', $quoteBatch);
+                $this->writeInChunks('quote_items', $itemBatch);
+                $quoteBatch = [];
+                $itemBatch = [];
+                $this->reportProgress("Quotes written: {$quotes}");
             }
+        }
+
+        if ($quoteBatch !== []) {
+            $this->writeInChunks('quotes', $quoteBatch);
+            $this->writeInChunks('quote_items', $itemBatch);
+            $this->reportProgress("Quotes written: {$quotes}");
         }
 
         $this->syncSequence('quotes');
@@ -2101,6 +2117,8 @@ class ImportLegacyCatalog extends Command
             return self::FAILURE;
         }
 
+        stream_set_write_buffer(STDOUT, 0);
+        $this->info('Reading shipment file.');
         $result = $this->insertShipments($this->csv($file));
         $this->info("Imported {$result['shipments']} shipments and {$result['items']} shipment lines.");
 
@@ -2147,6 +2165,8 @@ class ImportLegacyCatalog extends Command
         $shipments = 0;
         $items = 0;
         $skippedClient = 0;
+        $shipmentBatch = [];
+        $itemBatch = [];
         $now = now();
 
         foreach ($rows as $row) {
@@ -2208,7 +2228,7 @@ class ImportLegacyCatalog extends Command
                 ];
             }
 
-            DB::table('shipments')->insert([
+            $shipmentBatch[] = [
                 'id' => $id,
                 'company_id' => isset($companyIds[$companyId]) ? $companyId : null,
                 'number' => $number,
@@ -2225,15 +2245,26 @@ class ImportLegacyCatalog extends Command
                 'created_at' => $recordedAt,
                 'updated_at' => $recordedAt,
                 'deleted_at' => $deleted ? $recordedAt : null,
-            ]);
+            ];
+            array_push($itemBatch, ...$itemRows);
             $existingIds[$id] = true;
             $existingNumbers[$number] = true;
             $shipments++;
+            $items += count($itemRows);
 
-            foreach (array_chunk($itemRows, 200) as $chunk) {
-                DB::table('shipment_items')->insert($chunk);
-                $items += count($chunk);
+            if (count($shipmentBatch) >= 100) {
+                $this->writeInChunks('shipments', $shipmentBatch);
+                $this->writeInChunks('shipment_items', $itemBatch);
+                $shipmentBatch = [];
+                $itemBatch = [];
+                $this->reportProgress("Shipments written: {$shipments}");
             }
+        }
+
+        if ($shipmentBatch !== []) {
+            $this->writeInChunks('shipments', $shipmentBatch);
+            $this->writeInChunks('shipment_items', $itemBatch);
+            $this->reportProgress("Shipments written: {$shipments}");
         }
 
         $this->syncSequence('shipments');
@@ -2711,6 +2742,22 @@ class ImportLegacyCatalog extends Command
         fclose($handle);
 
         return $rows;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     */
+    private function writeInChunks(string $table, array $rows): void
+    {
+        foreach (array_chunk($rows, 200) as $chunk) {
+            DB::table($table)->insert($chunk);
+        }
+    }
+
+    private function reportProgress(string $message): void
+    {
+        $this->info($message);
+        flush();
     }
 
     private function clip(string $value): string
