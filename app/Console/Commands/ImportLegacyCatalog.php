@@ -1847,6 +1847,7 @@ class ImportLegacyCatalog extends Command
         $companyIds = DB::table('companies')->pluck('id')->flip();
         $existingIds = DB::table('quotes')->pluck('id')->flip();
         $existingNumbers = DB::table('quotes')->pluck('number')->flip();
+        $quotesWithItems = DB::table('quote_items')->distinct()->pluck('quote_id')->map(fn ($id) => (int) $id)->flip();
         $linesById = [];
 
         foreach ($lines as $line) {
@@ -1880,15 +1881,19 @@ class ImportLegacyCatalog extends Command
                 continue;
             }
 
+            $repairItemsOnly = false;
+
             if (isset($existingIds[$id]) || isset($existingNumbers[$number])) {
-                foreach ($lineIds as $lineId) {
-                    $usedLines[$lineId] = true;
+                if (! isset($existingIds[$id]) || isset($quotesWithItems[$id])) {
+                    foreach ($lineIds as $lineId) {
+                        $usedLines[$lineId] = true;
+                    }
+
+                    continue;
                 }
 
-                continue;
-            }
-
-            if (! isset($clientIds[$clientId])) {
+                $repairItemsOnly = true;
+            } elseif (! isset($clientIds[$clientId])) {
                 $skippedClient++;
 
                 continue;
@@ -1930,6 +1935,21 @@ class ImportLegacyCatalog extends Command
             }
 
             $taxAmount = round($subtotal * $taxRate / 100, 2);
+
+            if ($repairItemsOnly) {
+                array_push($itemBatch, ...$itemRows);
+                $quotesWithItems[$id] = true;
+                $items += count($itemRows);
+
+                if (count($itemBatch) >= 200) {
+                    $this->storeMissingRows('quotes', 'quote_items', 'quote_id', [], $itemBatch);
+                    $itemBatch = [];
+                    $this->reportProgress("Quotes written: {$quotes}");
+                }
+
+                continue;
+            }
+
             $quoteBatch[] = [
                 'id' => $id,
                 'company_id' => isset($companyIds[$companyId]) ? $companyId : null,
@@ -1956,17 +1976,15 @@ class ImportLegacyCatalog extends Command
             $items += count($itemRows);
 
             if (count($quoteBatch) >= 100) {
-                $this->writeInChunks('quotes', $quoteBatch);
-                $this->writeInChunks('quote_items', $itemBatch);
+                $this->storeMissingRows('quotes', 'quote_items', 'quote_id', $quoteBatch, $itemBatch);
                 $quoteBatch = [];
                 $itemBatch = [];
                 $this->reportProgress("Quotes written: {$quotes}");
             }
         }
 
-        if ($quoteBatch !== []) {
-            $this->writeInChunks('quotes', $quoteBatch);
-            $this->writeInChunks('quote_items', $itemBatch);
+        if ($quoteBatch !== [] || $itemBatch !== []) {
+            $this->storeMissingRows('quotes', 'quote_items', 'quote_id', $quoteBatch, $itemBatch);
             $this->reportProgress("Quotes written: {$quotes}");
         }
 
@@ -2253,17 +2271,15 @@ class ImportLegacyCatalog extends Command
             $items += count($itemRows);
 
             if (count($shipmentBatch) >= 100) {
-                $this->writeInChunks('shipments', $shipmentBatch);
-                $this->writeInChunks('shipment_items', $itemBatch);
+                $this->storeMissingRows('shipments', 'shipment_items', 'shipment_id', $shipmentBatch, $itemBatch);
                 $shipmentBatch = [];
                 $itemBatch = [];
                 $this->reportProgress("Shipments written: {$shipments}");
             }
         }
 
-        if ($shipmentBatch !== []) {
-            $this->writeInChunks('shipments', $shipmentBatch);
-            $this->writeInChunks('shipment_items', $itemBatch);
+        if ($shipmentBatch !== [] || $itemBatch !== []) {
+            $this->storeMissingRows('shipments', 'shipment_items', 'shipment_id', $shipmentBatch, $itemBatch);
             $this->reportProgress("Shipments written: {$shipments}");
         }
 
@@ -2742,6 +2758,37 @@ class ImportLegacyCatalog extends Command
         fclose($handle);
 
         return $rows;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $parents
+     * @param  list<array<string, mixed>>  $children
+     */
+    private function storeMissingRows(string $parentTable, string $childTable, string $foreignKey, array $parents, array $children): void
+    {
+        $ids = array_map(intval(...), array_column($parents, 'id'));
+
+        if ($ids !== []) {
+            $present = DB::table($parentTable)->whereIn('id', $ids)->pluck('id')->map(fn ($id) => (int) $id)->flip();
+            $parents = array_values(array_filter(
+                $parents,
+                fn (array $row): bool => ! isset($present[(int) $row['id']]),
+            ));
+        }
+
+        $this->writeInChunks($parentTable, $parents);
+
+        $childParentIds = array_values(array_unique(array_map(intval(...), array_column($children, $foreignKey))));
+
+        if ($childParentIds !== []) {
+            $withChildren = DB::table($childTable)->whereIn($foreignKey, $childParentIds)->distinct()->pluck($foreignKey)->map(fn ($id) => (int) $id)->flip();
+            $children = array_values(array_filter(
+                $children,
+                fn (array $row): bool => ! isset($withChildren[(int) $row[$foreignKey]]),
+            ));
+        }
+
+        $this->writeInChunks($childTable, $children);
     }
 
     /**

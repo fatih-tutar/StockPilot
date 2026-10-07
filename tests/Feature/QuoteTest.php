@@ -184,4 +184,49 @@ class QuoteTest extends TestCase
         $this->assertNull(Quote::withTrashed()->where('number', 'TL-8')->first());
         $this->assertSame(5, Quote::withTrashed()->count());
     }
+
+    public function test_legacy_import_fills_lines_when_the_quote_was_saved_without_them(): void
+    {
+        $company = Company::factory()->create();
+        $user = User::factory()->create();
+        $client = Client::factory()->create();
+        $product = Product::factory()->create(['name' => 'Profil 40']);
+        $directory = storage_path('framework/testing/quotes-import-repair');
+
+        Quote::factory()->create([
+            'id' => 10,
+            'company_id' => $company->id,
+            'number' => 'F-10',
+            'client_id' => $client->id,
+            'user_id' => $user->id,
+            'status' => QuoteStatus::Sent,
+            'quote_date' => '2021-01-01',
+        ]);
+
+        File::ensureDirectoryExists($directory);
+        File::put($directory.'/teklif.csv', implode("\n", [
+            'teklifid,turunid,tverilenfirma,tadet,tsatisfiyati,unit_weight,tsaniye,formda,sirketid,silik',
+            "20,{$product->id},{$client->id},4,10,1,1609459200,1,{$company->id},0",
+        ]));
+        File::put($directory.'/teklifformlari.csv', implode("\n", [
+            'tformid,tekliflistesi,withholding,explanation,firmaid,saniye,sirketid,silik',
+            "10,20,0,,{$client->id},1609459200,{$company->id},0",
+        ]));
+
+        try {
+            $this->artisan('stockpilot:import-legacy', [
+                'path' => $directory,
+                '--only' => 'quotes',
+            ])->assertSuccessful();
+        } finally {
+            File::deleteDirectory($directory);
+        }
+
+        $quote = Quote::query()->with('items')->find(10);
+
+        $this->assertNotNull($quote);
+        $this->assertSame(1, Quote::withTrashed()->count());
+        $this->assertCount(1, $quote->items);
+        $this->assertSame(4, $quote->items->first()->quantity_piece);
+    }
 }
