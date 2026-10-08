@@ -68,7 +68,7 @@ const columns = computed(() => {
     const stacks = [[], []];
 
     groups.value.forEach((group, index) => {
-        stacks[index % 2].push({ ...group, order: index });
+        stacks[index % 2].push(group);
     });
 
     return stacks;
@@ -167,17 +167,16 @@ const confirmDelete = () => {
                 <div v-if="groups.length === 0" class="bg-white px-4 py-8 text-center text-sm text-gray-500 shadow-sm sm:rounded-lg">
                     Henüz kategori yok.
                 </div>
-                <div v-else class="flex flex-col gap-4 lg:grid lg:grid-cols-2 lg:items-start">
+                <div v-else class="flex flex-col gap-4 lg:flex-row lg:items-start">
                     <div
                         v-for="(stack, stackIndex) in columns"
                         :key="stackIndex"
-                        class="contents lg:block lg:space-y-4"
+                        class="flex min-w-0 flex-1 flex-col gap-4"
                     >
                     <section
                         v-for="group in stack"
                         :key="group.root.id"
                         class="overflow-hidden bg-white shadow-sm sm:rounded-lg"
-                        :style="{ order: group.order }"
                     >
                         <div class="flex items-center justify-between gap-3 bg-gray-50 px-4 py-3">
                             <div class="min-w-0 font-semibold text-gray-900">{{ group.root.name }}</div>
@@ -266,7 +265,7 @@ const confirmDelete = () => {
                     <p class="text-sm font-medium text-gray-800">Bu kategoride görünecek sütunlar</p>
                     <div v-for="group in columnGroups" :key="group.label" class="space-y-2">
                         <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ group.label }}</p>
-                        <div class="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
+                        <div class="grid grid-cols-4 gap-x-4 gap-y-2">
                             <label
                                 v-for="column in group.columns"
                                 :key="column.id"
