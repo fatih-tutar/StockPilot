@@ -12,6 +12,7 @@ import { computed, ref } from 'vue';
 const props = defineProps({
     categories: { type: Array, required: true },
     parentOptions: { type: Array, required: true },
+    columnGroups: { type: Array, required: true },
     canManage: { type: Boolean, required: true },
 });
 
@@ -24,6 +25,7 @@ const createForm = useForm({
     description: '',
     parent_id: '',
     sort_order: 0,
+    column_ids: [],
 });
 
 const editingId = ref(null);
@@ -32,6 +34,7 @@ const editForm = useForm({
     description: '',
     parent_id: '',
     sort_order: 0,
+    column_ids: [],
 });
 
 const deleteForm = useForm({});
@@ -41,6 +44,7 @@ const submitCreate = () => {
         ...data,
         parent_id: data.parent_id === '' ? null : Number(data.parent_id),
         sort_order: Number(data.sort_order || 0),
+        column_ids: data.parent_id === '' ? data.column_ids : [],
     })).post(route('categories.store'), {
         preserveScroll: true,
         onSuccess: () => createForm.reset(),
@@ -53,7 +57,14 @@ const startEdit = (category) => {
     editForm.description = category.description || '';
     editForm.parent_id = category.parent?.id || '';
     editForm.sort_order = category.sort_order ?? 0;
+    editForm.column_ids = [...(category.column_ids || [])];
     editForm.clearErrors();
+};
+
+const toggleColumn = (id) => {
+    editForm.column_ids = editForm.column_ids.includes(id)
+        ? editForm.column_ids.filter((columnId) => columnId !== id)
+        : [...editForm.column_ids, id];
 };
 
 const cancelEdit = () => {
@@ -66,6 +77,7 @@ const submitEdit = (category) => {
         ...data,
         parent_id: data.parent_id === '' ? null : Number(data.parent_id),
         sort_order: Number(data.sort_order || 0),
+        column_ids: data.parent_id === '' ? data.column_ids : [],
     })).put(route('categories.update', category.id), {
         preserveScroll: true,
         onSuccess: () => cancelEdit(),
@@ -175,7 +187,8 @@ const destroyCategory = (category) => {
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
-                            <tr v-for="category in categories" :key="category.id">
+                            <template v-for="category in categories" :key="category.id">
+                            <tr>
                                 <td class="px-4 py-3 align-top text-gray-900">
                                     <template v-if="editingId === category.id">
                                         <TextInput v-model="editForm.name" class="w-full" />
@@ -254,6 +267,37 @@ const destroyCategory = (category) => {
                                     </template>
                                 </td>
                             </tr>
+                            <tr v-if="editingId === category.id">
+                                <td colspan="4" class="bg-gray-50 px-4 py-3">
+                                    <p v-if="editForm.parent_id" class="text-sm text-gray-600">
+                                        Sütunlar üst kategoriden gelir. Alt kategorinin kendi sütun listesi yoktur.
+                                    </p>
+                                    <div v-else class="space-y-3">
+                                        <p class="text-sm font-medium text-gray-800">Bu kategoride görünecek sütunlar</p>
+                                        <div
+                                            v-for="group in columnGroups"
+                                            :key="group.label"
+                                            class="flex flex-wrap items-center gap-x-4 gap-y-2"
+                                        >
+                                            <span class="w-16 text-xs font-semibold uppercase tracking-wide text-gray-500">{{ group.label }}</span>
+                                            <label
+                                                v-for="column in group.columns"
+                                                :key="column.id"
+                                                class="flex items-center gap-2 text-sm text-gray-700"
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    class="rounded border-gray-300"
+                                                    :checked="editForm.column_ids.includes(column.id)"
+                                                    @change="toggleColumn(column.id)"
+                                                />
+                                                {{ column.label }}
+                                            </label>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            </template>
                             <tr v-if="categories.length === 0">
                                 <td
                                     class="px-4 py-8 text-center text-gray-500"

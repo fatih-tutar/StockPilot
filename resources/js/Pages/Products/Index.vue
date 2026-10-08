@@ -3,6 +3,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
+import Actions from '@/Pages/Products/Actions.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 
@@ -10,6 +11,9 @@ const props = defineProps({
     products: { type: Object, required: true },
     filters: { type: Object, required: true },
     categories: { type: Array, required: true },
+    sheet: { type: Object, default: null },
+    factories: { type: Array, default: () => [] },
+    staff: { type: Array, default: () => [] },
     canManage: { type: Boolean, required: true },
 });
 
@@ -103,7 +107,66 @@ watch(
                     </div>
                 </div>
 
-                <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
+                <p v-if="!sheet" class="text-sm text-gray-500">
+                    Bir kategori seçildiğinde liste, o kategorinin sütunlarına göre açılır.
+                </p>
+
+                <div v-if="sheet" class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
+                    <table class="min-w-full divide-y divide-gray-200 text-sm">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left font-medium text-gray-600">Ürün</th>
+                                <th
+                                    v-for="column in sheet.columns"
+                                    :key="column.name"
+                                    class="px-4 py-3 text-left font-medium text-gray-600"
+                                >
+                                    {{ column.label }}
+                                </th>
+                                <th class="px-4 py-3 text-right font-medium text-gray-600">İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            <template v-for="product in products.data" :key="product.id">
+                                <tr>
+                                    <td class="px-4 py-3 font-medium text-gray-900">{{ product.name }}</td>
+                                    <td
+                                        v-for="column in sheet.columns"
+                                        :key="column.name"
+                                        class="px-4 py-3 text-gray-700"
+                                    >
+                                        {{ product.cells?.[column.name] ?? '—' }}
+                                    </td>
+                                    <td class="px-4 py-3 text-right">
+                                        <Link
+                                            :href="route('products.edit', product.id)"
+                                            class="text-sm text-indigo-600 hover:text-indigo-800"
+                                        >
+                                            Aç
+                                        </Link>
+                                    </td>
+                                </tr>
+                                <tr v-if="sheet.actions.length">
+                                    <td :colspan="sheet.columns.length + 2" class="px-4 pb-4">
+                                        <Actions
+                                            :product="product"
+                                            :actions="sheet.actions"
+                                            :factories="factories"
+                                            :staff="staff"
+                                        />
+                                    </td>
+                                </tr>
+                            </template>
+                            <tr v-if="products.data.length === 0">
+                                <td :colspan="sheet.columns.length + 2" class="px-4 py-8 text-center text-gray-500">
+                                    Ürün bulunamadı.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div v-else class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                     <table class="min-w-full divide-y divide-gray-200 text-sm">
                         <thead class="bg-gray-50">
                             <tr>
@@ -170,11 +233,12 @@ watch(
                             </tr>
                         </tbody>
                     </table>
+                </div>
 
-                    <div
-                        v-if="products.links?.length > 3"
-                        class="flex flex-wrap gap-2 border-t border-gray-100 px-4 py-3"
-                    >
+                <div
+                    v-if="products.links?.length > 3"
+                    class="flex flex-wrap gap-2 rounded-lg border border-gray-100 bg-white px-4 py-3"
+                >
                         <Link
                             v-for="link in products.links"
                             :key="link.label"
@@ -189,7 +253,6 @@ watch(
                             preserve-scroll
                         />
                     </div>
-                </div>
             </div>
         </div>
     </AuthenticatedLayout>

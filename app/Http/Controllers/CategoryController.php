@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\Catalog\StoreCategoryRequest;
 use App\Http\Requests\Catalog\UpdateCategoryRequest;
 use App\Models\Category;
+use App\Models\CategoryColumnDefinition;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -18,6 +19,7 @@ class CategoryController extends Controller
 
         $categories = Category::query()
             ->with('parent:id,name')
+            ->with('columnDefinitions:id')
             ->withCount('products')
             ->orderBy('sort_order')
             ->orderBy('name')
@@ -29,6 +31,9 @@ class CategoryController extends Controller
                 'sort_order' => $category->sort_order,
                 'parent' => $category->parent?->only(['id', 'name']),
                 'products_count' => $category->products_count,
+                'column_ids' => $category->parent_id === null
+                    ? $category->columnDefinitions->pluck('id')->all()
+                    : [],
             ]);
 
         return Inertia::render('Categories/Index', [
@@ -36,16 +41,18 @@ class CategoryController extends Controller
             'parentOptions' => Category::query()
                 ->orderBy('name')
                 ->get(['id', 'name']),
+            'columnGroups' => $this->columnGroups(),
             'canManage' => $request->user()->can('stock.manage'),
         ]);
     }
 
     public function store(StoreCategoryRequest $request): RedirectResponse
     {
-        Category::query()->create([
-            ...$request->validated(),
+        $category = Category::query()->create([
+            ...$request->safe()->except('column_ids'),
             'sort_order' => $request->integer('sort_order'),
         ]);
+        $this->syncColumns($category, $request->validated('column_ids') ?? []);
 
         return redirect()
             ->route('categories.index')
@@ -55,9 +62,10 @@ class CategoryController extends Controller
     public function update(UpdateCategoryRequest $request, Category $category): RedirectResponse
     {
         $category->update([
-            ...$request->validated(),
+            ...$request->safe()->except('column_ids'),
             'sort_order' => $request->integer('sort_order'),
         ]);
+        $this->syncColumns($category, $request->validated('column_ids') ?? []);
 
         return redirect()
             ->route('categories.index')
@@ -79,5 +87,45 @@ class CategoryController extends Controller
         return redirect()
             ->route('categories.index')
             ->with('success', 'Kategori silindi.');
+    }
+
+    /**
+     * @param  list<int>  $columnIds
+     */
+    private function syncColumns(Category $category, array $columnIds): void
+    {
+        if ($category->parent_id !== null) {
+            $category->columnDefinitions()->detach();
+
+            return;
+        }
+
+        $category->columnDefinitions()->sync($columnIds);
+    }
+
+    /**
+     * @return list<array{label: string, columns: list<array{id: int, label: string}>}>
+     */
+    private function columnGroups(): array
+    {
+        $labels = [
+            'list' => 'Liste',
+            'form' => 'Form',
+            'action' => 'İşlem',
+        ];
+
+        return CategoryColumnDefinition::query()
+            ->orderBy('sort_order')
+            ->get()
+            ->groupBy(fn (CategoryColumnDefinition $definition) => $definition->group->value)
+            ->map(fn ($columns, string $group) => [
+                'label' => $labels[$group] ?? $group,
+                'columns' => $columns->map(fn (CategoryColumnDefinition $definition) => [
+                    'id' => $definition->id,
+                    'label' => $definition->label,
+                ])->values()->all(),
+            ])
+            ->values()
+            ->all();
     }
 }

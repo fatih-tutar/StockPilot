@@ -3,18 +3,29 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Stock\AdjustProductStock;
+use App\Enums\FactoryOrderStatus;
+use App\Enums\QuoteStatus;
+use App\Enums\ShipmentStatus;
 use App\Enums\StockActivityPlace;
 use App\Http\Requests\Catalog\AdjustStockRequest;
 use App\Http\Requests\Catalog\StoreProductRequest;
 use App\Http\Requests\Catalog\UpdateProductRequest;
 use App\Models\Category;
+use App\Models\Client;
+use App\Models\Factory;
+use App\Models\FactoryOrder;
 use App\Models\MoldNumber;
 use App\Models\Product;
+use App\Models\Quote;
+use App\Models\Shipment;
 use App\Models\StockActivity;
 use App\Models\StockMovement;
+use App\Models\User;
 use App\Support\AccessRoles;
+use App\Support\CategoryColumns;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -30,8 +41,13 @@ class ProductController extends Controller
         $categoryId = $request->integer('category_id') ?: null;
         $columns = AccessRoles::visibleColumns($request->user());
 
+        $category = $categoryId === null
+            ? null
+            : Category::query()->with('parent')->find($categoryId);
+        $sheet = $this->sheet($category, $request->user());
+
         $products = Product::query()
-            ->with('category:id,name')
+            ->with(['category:id,name', 'sourceFactory:id,name'])
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($inner) use ($search) {
                     $inner->where('name', 'like', "%{$search}%")
@@ -39,6 +55,7 @@ class ProductController extends Controller
                 });
             })
             ->when($categoryId, fn ($query) => $query->where('category_id', $categoryId))
+            ->orderBy('sort_order')
             ->orderBy('name')
             ->paginate(15)
             ->withQueryString()
@@ -52,6 +69,13 @@ class ProductController extends Controller
                 'is_low_stock' => $product->isLowStock(),
                 'is_active' => $product->is_active,
                 'category' => $product->category?->only(['id', 'name']),
+                'cells' => collect($sheet['columns'])->mapWithKeys(
+                    fn (array $column) => [$column['name'] => CategoryColumns::listValue($product, $column['name'])],
+                )->all(),
+                'sale_price' => $product->sale_price,
+                'default_order_quantity' => $product->default_order_quantity,
+                'length_measure' => $product->length_measure,
+                'factory_id' => $product->factory_id,
             ]);
 
         return Inertia::render('Products/Index', [
@@ -61,6 +85,9 @@ class ProductController extends Controller
                 'category_id' => $categoryId,
             ],
             'categories' => Category::query()->orderBy('name')->get(['id', 'name']),
+            'sheet' => $category === null ? null : $sheet,
+            'factories' => Factory::query()->orderBy('name')->get(['id', 'name']),
+            'staff' => User::query()->orderBy('name')->get(['id', 'name']),
             'canManage' => $request->user()->can('stock.manage'),
         ]);
     }
@@ -72,12 +99,17 @@ class ProductController extends Controller
         return Inertia::render('Products/Form', [
             'product' => null,
             'categories' => Category::query()->orderBy('name')->get(['id', 'name']),
+            'fields' => [],
+            'factories' => Factory::query()->orderBy('name')->get(['id', 'name']),
+            'staff' => [],
         ]);
     }
 
     public function store(StoreProductRequest $request): RedirectResponse
     {
         $data = $request->validated();
+        $category = Category::query()->with('parent')->find($data['category_id']);
+        $data = $this->writable($data, $category, $request->user());
         $data['quantity_piece'] = $data['quantity_piece'] ?? 0;
         $data['quantity_pallet'] = $data['quantity_pallet'] ?? 0;
         $data['is_active'] = $data['is_active'] ?? true;
@@ -94,7 +126,8 @@ class ProductController extends Controller
         $this->authorize('view', $product);
 
         $columns = AccessRoles::visibleColumns($request->user());
-        $product->load(['category:id,name', 'sourceFactory:id,name']);
+        $product->load(['category.parent', 'sourceFactory:id,name']);
+        $visible = CategoryColumns::visibleNames($product->category, $request->user());
         $moldNumber = $product->factory_id === null
             ? null
             : MoldNumber::query()
@@ -136,6 +169,16 @@ class ProductController extends Controller
                 'description' => $product->description,
                 'quantity_piece' => $columns['piece'] ? $product->quantity_piece : null,
                 'quantity_pallet' => $columns['pallet'] ? $product->quantity_pallet : null,
+                'warehouse_quantity' => $columns['alkop'] ? $product->warehouse_quantity : null,
+                'shelf' => $product->shelf,
+                'unit_weight_kg' => $product->unit_weight_kg,
+                'length_measure' => $product->length_measure,
+                'purchase_price' => $columns['purchase'] ? $product->purchase_price : null,
+                'sale_price' => $columns['sale'] ? $product->sale_price : null,
+                'customer_name' => $product->customer_name,
+                'due_on' => $product->due_on?->toDateString(),
+                'default_order_quantity' => $product->default_order_quantity,
+                'warehouse_low_stock_threshold' => $product->warehouse_low_stock_threshold,
                 'low_stock_threshold' => $product->low_stock_threshold,
                 'is_active' => $product->is_active,
                 'is_low_stock' => $product->isLowStock(),
@@ -145,6 +188,9 @@ class ProductController extends Controller
                 'category' => $product->category?->only(['id', 'name']),
             ],
             'categories' => Category::query()->orderBy('name')->get(['id', 'name']),
+            'fields' => $visible,
+            'factories' => Factory::query()->orderBy('name')->get(['id', 'name']),
+            'staff' => User::query()->orderBy('name')->get(['id', 'name']),
             'activities' => $activities,
             'canManage' => $request->user()->can('stock.manage'),
         ]);
@@ -157,7 +203,8 @@ class ProductController extends Controller
         $moldNumber = $data['mold_number'] ?? null;
         unset($data['mold_number']);
 
-        $product->update($data);
+        $product->load('category.parent');
+        $product->update($this->writable($data, $product->category, $request->user()));
 
         if ($hasMoldNumber && $product->factory_id !== null) {
             MoldNumber::query()->updateOrCreate(
@@ -216,5 +263,192 @@ class ProductController extends Controller
         return redirect()
             ->route('products.edit', $product)
             ->with('success', 'Stok güncellendi.');
+    }
+
+    public function quote(Request $request, Product $product): RedirectResponse
+    {
+        $this->requireColumn($product, 'offer_button', $request->user());
+        $this->authorize('create', Quote::class);
+
+        $data = $request->validate([
+            'client_name' => ['required', 'string', 'max:255'],
+            'quantity_piece' => ['required', 'integer', 'min:1'],
+            'unit_price' => ['required', 'numeric', 'min:0'],
+        ], [
+            'client_name.required' => 'Müşteri adı zorunludur.',
+            'quantity_piece.required' => 'Adet zorunludur.',
+            'unit_price.required' => 'Fiyat zorunludur.',
+        ]);
+
+        $client = Client::query()->where('name', $data['client_name'])->first();
+        if ($client === null) {
+            throw ValidationException::withMessages([
+                'client_name' => 'Bu isimde bir müşteri yok.',
+            ]);
+        }
+
+        $weight = (float) ($product->unit_weight_kg ?? 0);
+        $lineTotal = $weight > 0
+            ? round($data['quantity_piece'] * $weight * (float) $data['unit_price'], 2)
+            : round($data['quantity_piece'] * (float) $data['unit_price'], 2);
+
+        DB::transaction(function () use ($request, $product, $client, $data, $lineTotal): void {
+            $quote = Quote::query()->create([
+                'number' => Quote::nextNumber(),
+                'client_id' => $client->id,
+                'user_id' => $request->user()->id,
+                'status' => QuoteStatus::Draft,
+                'quote_date' => now()->toDateString(),
+                'currency' => 'TRY',
+                'tax_rate' => 20,
+                'subtotal' => 0,
+                'tax_amount' => 0,
+                'total' => 0,
+            ]);
+            $quote->items()->create([
+                'product_id' => $product->id,
+                'description' => $product->name,
+                'quantity_piece' => $data['quantity_piece'],
+                'quantity_pallet' => 0,
+                'unit_price' => $data['unit_price'],
+                'line_total' => $lineTotal,
+                'sort_order' => 1,
+            ]);
+            $quote->recalculateTotals();
+        });
+
+        return back()->with('success', 'Teklif taslağı oluşturuldu.');
+    }
+
+    public function order(Request $request, Product $product): RedirectResponse
+    {
+        $this->requireColumn($product, 'order_button', $request->user());
+        $this->authorize('create', FactoryOrder::class);
+
+        $data = $request->validate([
+            'factory_id' => ['required', 'integer', 'exists:factories,id'],
+            'quantity' => ['required', 'integer', 'min:1'],
+            'length' => ['nullable', 'string', 'max:64'],
+            'pallet_count' => ['nullable', 'integer', 'min:0'],
+            'due_on' => ['nullable', 'date'],
+            'contact_name' => ['nullable', 'string', 'max:255'],
+            'prepared_by_user_id' => ['nullable', 'integer', 'exists:users,id'],
+        ], [
+            'factory_id.required' => 'Fabrika seçin.',
+            'quantity.required' => 'Adet zorunludur.',
+        ]);
+
+        FactoryOrder::query()->create([
+            'factory_id' => $data['factory_id'],
+            'product_id' => $product->id,
+            'product_name' => $product->name,
+            'quantity' => $data['quantity'],
+            'length' => $data['length'] ?? $product->length_measure,
+            'pallet_count' => $data['pallet_count'] ?? 0,
+            'due_on' => $data['due_on'] ?? null,
+            'contact_name' => $data['contact_name'] ?? null,
+            'prepared_by_user_id' => $data['prepared_by_user_id'] ?? $request->user()->id,
+            'status' => FactoryOrderStatus::Open,
+        ]);
+
+        return back()->with('success', 'Fabrika siparişi eklendi.');
+    }
+
+    public function ship(Request $request, Product $product): RedirectResponse
+    {
+        $this->requireColumn($product, 'shipment_button', $request->user());
+        $this->authorize('create', Shipment::class);
+
+        $data = $request->validate([
+            'client_name' => ['required', 'string', 'max:255'],
+            'quantity_piece' => ['required', 'integer', 'min:1'],
+            'quantity_pallet' => ['nullable', 'integer', 'min:0'],
+        ], [
+            'client_name.required' => 'Müşteri adı zorunludur.',
+            'quantity_piece.required' => 'Adet zorunludur.',
+        ]);
+
+        $client = Client::query()->where('name', $data['client_name'])->first();
+        if ($client === null) {
+            throw ValidationException::withMessages([
+                'client_name' => 'Bu isimde bir müşteri yok.',
+            ]);
+        }
+
+        DB::transaction(function () use ($request, $product, $client, $data): void {
+            $shipment = Shipment::query()->create([
+                'number' => Shipment::nextNumber(),
+                'client_id' => $client->id,
+                'user_id' => $request->user()->id,
+                'status' => ShipmentStatus::Scheduled,
+                'ship_date' => now()->toDateString(),
+            ]);
+            $shipment->items()->create([
+                'product_id' => $product->id,
+                'description' => $product->name,
+                'quantity_piece' => $data['quantity_piece'],
+                'quantity_pallet' => $data['quantity_pallet'] ?? 0,
+                'sort_order' => 1,
+            ]);
+        });
+
+        return back()->with('success', 'Sevkiyat planlandı.');
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function writable(array $data, ?Category $category, User $user): array
+    {
+        $allowed = [];
+        foreach (CategoryColumns::visibleNames($category, $user) as $name) {
+            $attribute = CategoryColumns::attributeFor($name);
+            if ($attribute !== null) {
+                $allowed[] = $attribute;
+            }
+        }
+
+        $kept = array_intersect_key($data, array_flip([
+            'category_id',
+            'name',
+            'description',
+            'is_active',
+            ...$allowed,
+        ]));
+
+        return $kept;
+    }
+
+    /**
+     * @return array{columns: list<array{name: string, label: string}>, actions: list<string>}
+     */
+    private function sheet(?Category $category, User $user): array
+    {
+        $visible = CategoryColumns::visibleNames($category, $user);
+        $actions = array_values(array_intersect(
+            ['offer_button', 'order_button', 'shipment_button', 'edit_button'],
+            $visible,
+        ));
+
+        $columns = CategoryColumns::definitions($category)
+            ->filter(fn ($definition) => in_array($definition->name, $visible, true) && ! in_array($definition->name, $actions, true))
+            ->map(fn ($definition) => [
+                'name' => $definition->name,
+                'label' => $definition->label,
+            ])
+            ->values()
+            ->all();
+
+        return [
+            'columns' => $columns,
+            'actions' => $actions,
+        ];
+    }
+
+    private function requireColumn(Product $product, string $name, User $user): void
+    {
+        $product->loadMissing('category.parent');
+        abort_unless(in_array($name, CategoryColumns::visibleNames($product->category, $user), true), 403);
     }
 }

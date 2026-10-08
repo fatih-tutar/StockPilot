@@ -26,6 +26,8 @@ class UpdateCategoryRequest extends FormRequest
                 Rule::notIn([$categoryId]),
             ],
             'sort_order' => ['nullable', 'integer', 'min:0'],
+            'column_ids' => ['nullable', 'array'],
+            'column_ids.*' => ['integer', Rule::exists('category_column_definitions', 'id')],
         ];
     }
 }
