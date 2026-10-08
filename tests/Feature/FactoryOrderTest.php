@@ -54,10 +54,11 @@ class FactoryOrderTest extends TestCase
         $company = Company::factory()->create();
         $other = Company::factory()->create();
         $user = $this->manager($company->id);
-        $factory = Factory::factory()->create();
+        $factory = Factory::factory()->create(['company_id' => $company->id]);
         $product = Product::factory()->create([
             'name' => 'Profil 40',
             'factory_id' => $factory->id,
+            'company_id' => $company->id,
         ]);
 
         $this->actingAs($user)

@@ -47,7 +47,7 @@ class OrganizationTest extends TestCase
 
         $company = Company::factory()->create();
         $other = Company::factory()->create();
-        $user = $this->userWithPermission('organizations.manage', $other->id);
+        $user = $this->userWithPermission('organizations.manage', $company->id);
         $member = OrganizationMember::factory()->create([
             'company_id' => $company->id,
             'position' => 1,

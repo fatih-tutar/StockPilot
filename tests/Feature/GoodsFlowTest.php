@@ -152,7 +152,7 @@ class GoodsFlowTest extends TestCase
                 'recorded_on' => '2026-03-05',
                 'store_outgoing' => '1',
             ])
-            ->assertForbidden();
+            ->assertNotFound();
     }
 
     public function test_the_list_shows_stock_weight_and_the_week_total(): void

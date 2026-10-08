@@ -299,7 +299,7 @@ class LeaveTest extends TestCase
 
         $this->actingAs($manager)
             ->get(route('leaves.edit', $leave))
-            ->assertForbidden();
+            ->assertNotFound();
     }
 
     public function test_index_splits_the_year_and_shows_allowances(): void

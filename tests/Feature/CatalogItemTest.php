@@ -245,6 +245,7 @@ class CatalogItemTest extends TestCase
         CatalogItem::factory()->create([
             'product_code' => 'LED-1',
             'price' => '120 TL',
+            'company_id' => $company->id,
         ]);
 
         $this->actingAs($user)
