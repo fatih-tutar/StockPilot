@@ -17,7 +17,6 @@ class StoreCategoryRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
             'parent_id' => ['nullable', 'integer', Rule::exists('categories', 'id')->whereNull('deleted_at')],
             'sort_order' => ['nullable', 'integer', 'min:0'],
             'column_ids' => ['nullable', 'array'],

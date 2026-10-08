@@ -23,7 +23,6 @@ const flashError = computed(() => page.props.flash?.error);
 
 const form = useForm({
     name: '',
-    description: '',
     parent_id: '',
     sort_order: 0,
     column_ids: [],
@@ -75,7 +74,6 @@ const openCreate = () => {
 const openEdit = (category) => {
     editingCategory.value = category;
     form.name = category.name;
-    form.description = category.description || '';
     form.parent_id = category.parent?.id || '';
     form.sort_order = category.sort_order ?? 0;
     form.column_ids = [...(category.column_ids || [])];
@@ -87,18 +85,7 @@ const closeForm = () => {
     showForm.value = false;
 };
 
-const onParentChange = () => {
-    if (form.parent_id === '' || form.parent_id === null) {
-        if (!editingCategory.value) {
-            form.column_ids = [];
-        }
-
-        return;
-    }
-
-    const parent = props.categories.find((category) => category.id === Number(form.parent_id));
-    form.column_ids = [...(parent?.column_ids || [])];
-};
+const showsColumns = computed(() => form.parent_id === '' || form.parent_id === null);
 
 const toggleColumn = (id) => {
     form.column_ids = form.column_ids.includes(id)
@@ -115,7 +102,7 @@ const submit = () => {
         ...data,
         parent_id: data.parent_id === '' ? null : Number(data.parent_id),
         sort_order: Number(data.sort_order || 0),
-        column_ids: data.column_ids,
+        column_ids: data.parent_id === '' || data.parent_id === null ? data.column_ids : [],
     }));
 
     if (editingCategory.value) {
@@ -167,80 +154,55 @@ const confirmDelete = () => {
                     {{ flashError }}
                 </div>
 
-                <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
-                    <table class="min-w-full divide-y divide-gray-200 text-sm">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-4 py-3 text-left font-medium text-gray-600">Ad</th>
-                                <th class="px-4 py-3 text-left font-medium text-gray-600">Ürünler</th>
-                                <th v-if="canManage" class="px-4 py-3 text-right font-medium text-gray-600">
-                                    İşlemler
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-100">
-                            <template v-for="group in groups" :key="group.root.id">
-                                <tr class="bg-gray-50">
-                                    <td class="px-4 py-3 font-semibold text-gray-900">
-                                        <div>{{ group.root.name }}</div>
-                                        <div v-if="group.root.description" class="text-xs font-normal text-gray-500">
-                                            {{ group.root.description }}
-                                        </div>
-                                    </td>
-                                    <td class="px-4 py-3 text-gray-700">
-                                        {{ group.root.products_count }}
-                                    </td>
-                                    <td v-if="canManage" class="px-4 py-3 text-right">
-                                        <div class="flex justify-end gap-2">
-                                            <SecondaryButton class="!px-3 !py-1" @click="openEdit(group.root)">
-                                                Düzenle
-                                            </SecondaryButton>
-                                            <DangerButton class="!px-3 !py-1" @click="deletingCategory = group.root">
-                                                Sil
-                                            </DangerButton>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <tr v-for="category in group.children" :key="category.id">
-                                    <td class="px-4 py-3 text-gray-900">
-                                        <div
-                                            class="font-medium"
-                                            :class="category.parent?.id === group.root.id ? 'pl-6' : 'pl-10'"
-                                        >
-                                            {{ category.name }}
-                                        </div>
-                                        <div
-                                            v-if="category.description"
-                                            class="pl-6 text-xs text-gray-500"
-                                        >
-                                            {{ category.description }}
-                                        </div>
-                                    </td>
-                                    <td class="px-4 py-3 text-gray-700">
-                                        {{ category.products_count }}
-                                    </td>
-                                    <td v-if="canManage" class="px-4 py-3 text-right">
-                                        <div class="flex justify-end gap-2">
-                                            <SecondaryButton class="!px-3 !py-1" @click="openEdit(category)">
-                                                Düzenle
-                                            </SecondaryButton>
-                                            <DangerButton class="!px-3 !py-1" @click="deletingCategory = category">
-                                                Sil
-                                            </DangerButton>
-                                        </div>
-                                    </td>
-                                </tr>
-                            </template>
-                            <tr v-if="groups.length === 0">
-                                <td
-                                    class="px-4 py-8 text-center text-gray-500"
-                                    :colspan="canManage ? 3 : 2"
+                <div v-if="groups.length === 0" class="bg-white px-4 py-8 text-center text-sm text-gray-500 shadow-sm sm:rounded-lg">
+                    Henüz kategori yok.
+                </div>
+                <div v-else class="grid items-start gap-4 lg:grid-cols-2">
+                    <section
+                        v-for="group in groups"
+                        :key="group.root.id"
+                        class="overflow-hidden bg-white shadow-sm sm:rounded-lg"
+                    >
+                        <div class="flex items-center justify-between gap-3 bg-gray-50 px-4 py-3">
+                            <div class="min-w-0 font-semibold text-gray-900">{{ group.root.name }}</div>
+                            <div class="flex shrink-0 items-center gap-3">
+                                <span class="text-sm text-gray-600">{{ group.root.products_count }}</span>
+                                <div v-if="canManage" class="flex gap-2">
+                                    <SecondaryButton class="!px-3 !py-1" @click="openEdit(group.root)">
+                                        Düzenle
+                                    </SecondaryButton>
+                                    <DangerButton class="!px-3 !py-1" @click="deletingCategory = group.root">
+                                        Sil
+                                    </DangerButton>
+                                </div>
+                            </div>
+                        </div>
+                        <ul v-if="group.children.length" class="divide-y divide-gray-100 text-sm">
+                            <li
+                                v-for="category in group.children"
+                                :key="category.id"
+                                class="flex items-center justify-between gap-3 px-4 py-2"
+                            >
+                                <div
+                                    class="min-w-0 font-medium text-gray-900"
+                                    :class="category.parent?.id === group.root.id ? 'pl-4' : 'pl-8'"
                                 >
-                                    Henüz kategori yok.
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+                                    {{ category.name }}
+                                </div>
+                                <div class="flex shrink-0 items-center gap-3">
+                                    <span class="text-gray-600">{{ category.products_count }}</span>
+                                    <div v-if="canManage" class="flex gap-2">
+                                        <SecondaryButton class="!px-3 !py-1" @click="openEdit(category)">
+                                            Düzenle
+                                        </SecondaryButton>
+                                        <DangerButton class="!px-3 !py-1" @click="deletingCategory = category">
+                                            Sil
+                                        </DangerButton>
+                                    </div>
+                                </div>
+                            </li>
+                        </ul>
+                    </section>
                 </div>
             </div>
         </div>
@@ -268,7 +230,6 @@ const confirmDelete = () => {
                             id="parent_id"
                             v-model="form.parent_id"
                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                            @change="onParentChange"
                         >
                             <option value="">Yok</option>
                             <option
@@ -282,42 +243,27 @@ const confirmDelete = () => {
                         </select>
                         <InputError class="mt-2" :message="form.errors.parent_id" />
                     </div>
-                    <div class="md:col-span-2">
-                        <InputLabel for="description" value="Açıklama" />
-                        <textarea
-                            id="description"
-                            v-model="form.description"
-                            rows="2"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                        />
-                        <InputError class="mt-2" :message="form.errors.description" />
-                    </div>
                 </div>
 
-                <div class="mt-6 space-y-3">
+                <div v-if="showsColumns" class="mt-6 space-y-4">
                     <p class="text-sm font-medium text-gray-800">Bu kategoride görünecek sütunlar</p>
-                    <p v-if="form.parent_id" class="text-sm text-gray-600">
-                        Sütunlar üst kategoriye aittir. Kaydettiğinizde o üst kategorinin listesi güncellenir.
-                    </p>
-                    <div
-                        v-for="group in columnGroups"
-                        :key="group.label"
-                        class="flex flex-wrap items-center gap-x-4 gap-y-2"
-                    >
-                        <span class="w-16 text-xs font-semibold uppercase tracking-wide text-gray-500">{{ group.label }}</span>
-                        <label
-                            v-for="column in group.columns"
-                            :key="column.id"
-                            class="flex items-center gap-2 text-sm text-gray-700"
-                        >
-                            <input
-                                type="checkbox"
-                                class="rounded border-gray-300"
-                                :checked="form.column_ids.includes(column.id)"
-                                @change="toggleColumn(column.id)"
-                            />
-                            {{ column.label }}
-                        </label>
+                    <div v-for="group in columnGroups" :key="group.label" class="space-y-2">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ group.label }}</p>
+                        <div class="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-5">
+                            <label
+                                v-for="column in group.columns"
+                                :key="column.id"
+                                class="flex items-center gap-2 text-sm text-gray-700"
+                            >
+                                <input
+                                    type="checkbox"
+                                    class="rounded border-gray-300"
+                                    :checked="form.column_ids.includes(column.id)"
+                                    @change="toggleColumn(column.id)"
+                                />
+                                {{ column.label }}
+                            </label>
+                        </div>
                     </div>
                 </div>
 

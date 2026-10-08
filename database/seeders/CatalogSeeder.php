@@ -12,17 +12,17 @@ class CatalogSeeder extends Seeder
     {
         $profiles = Category::query()->updateOrCreate(
             ['name' => 'Extrusion Profiles'],
-            ['description' => 'Standard aluminum profiles', 'sort_order' => 1],
+            ['sort_order' => 1],
         );
 
         $sheets = Category::query()->updateOrCreate(
             ['name' => 'Sheets & Panels'],
-            ['description' => 'Flat stock', 'sort_order' => 2],
+            ['sort_order' => 2],
         );
 
         $accessories = Category::query()->updateOrCreate(
             ['name' => 'Accessories'],
-            ['description' => 'Hardware and fittings', 'sort_order' => 3],
+            ['sort_order' => 3],
         );
 
         Product::query()->updateOrCreate(

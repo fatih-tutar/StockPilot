@@ -20,7 +20,6 @@ class Category extends Model
         'parent_id',
         'name',
         'image',
-        'description',
         'profit_margin',
         'company_id',
         'sort_order',

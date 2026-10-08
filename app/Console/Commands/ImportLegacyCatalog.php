@@ -182,7 +182,6 @@ class ImportLegacyCatalog extends Command
                     'parent_id' => null,
                     'name' => $category['name'],
                     'image' => $this->blankToNull($category['image'] ?? null),
-                    'description' => null,
                     'profit_margin' => $this->rate($category['profit_margin'] ?? null),
                     'company_id' => (int) $category['company_id'],
                     'sort_order' => 0,
