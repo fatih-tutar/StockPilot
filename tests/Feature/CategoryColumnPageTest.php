@@ -74,6 +74,34 @@ class CategoryColumnPageTest extends TestCase
         );
     }
 
+    public function test_editing_a_child_category_saves_columns_on_its_parent(): void
+    {
+        Permission::findOrCreate('stock.manage');
+        $user = User::factory()->create();
+        $user->givePermissionTo('stock.manage');
+        $parent = Category::factory()->create(['name' => 'Profil']);
+        $child = Category::factory()->create(['name' => 'Boru', 'parent_id' => $parent->id]);
+        $shelf = CategoryColumnDefinition::query()->where('name', 'shelf')->firstOrFail();
+
+        $this->actingAs($user)
+            ->get(route('categories.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('categories', fn ($categories) => collect($categories)->firstWhere('id', $child->id)['column_ids'] === []));
+
+        $this->actingAs($user)
+            ->put(route('categories.update', $child), [
+                'name' => 'Boru',
+                'parent_id' => $parent->id,
+                'sort_order' => 0,
+                'column_ids' => [$shelf->id],
+            ])
+            ->assertRedirect();
+
+        $this->assertTrue($parent->fresh()->columnDefinitions()->whereKey($shelf->id)->exists());
+        $this->assertSame(0, $child->fresh()->columnDefinitions()->count());
+    }
+
     public function test_hidden_quantity_stays_off_when_the_person_cannot_see_piece_counts(): void
     {
         $user = User::factory()->create();

@@ -18,23 +18,27 @@ class CategoryController extends Controller
         $this->authorize('viewAny', Category::class);
 
         $categories = Category::query()
-            ->with('parent:id,name')
-            ->with('columnDefinitions:id')
+            ->with([
+                'columnDefinitions:id',
+                'parent' => fn ($query) => $query->select(['id', 'name'])->with('columnDefinitions:id'),
+            ])
             ->withCount('products')
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get()
-            ->map(fn (Category $category) => [
-                'id' => $category->id,
-                'name' => $category->name,
-                'description' => $category->description,
-                'sort_order' => $category->sort_order,
-                'parent' => $category->parent?->only(['id', 'name']),
-                'products_count' => $category->products_count,
-                'column_ids' => $category->parent_id === null
-                    ? $category->columnDefinitions->pluck('id')->all()
-                    : [],
-            ]);
+            ->map(function (Category $category) {
+                $layout = $category->parent_id === null ? $category : $category->parent;
+
+                return [
+                    'id' => $category->id,
+                    'name' => $category->name,
+                    'description' => $category->description,
+                    'sort_order' => $category->sort_order,
+                    'parent' => $category->parent?->only(['id', 'name']),
+                    'products_count' => $category->products_count,
+                    'column_ids' => $layout?->columnDefinitions->pluck('id')->all() ?? [],
+                ];
+            });
 
         return Inertia::render('Categories/Index', [
             'categories' => $categories,
@@ -94,8 +98,11 @@ class CategoryController extends Controller
      */
     private function syncColumns(Category $category, array $columnIds): void
     {
+        $category->refresh();
+
         if ($category->parent_id !== null) {
             $category->columnDefinitions()->detach();
+            $category->parent?->columnDefinitions()->sync($columnIds);
 
             return;
         }
