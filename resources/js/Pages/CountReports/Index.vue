@@ -67,8 +67,8 @@ const printPage = () => window.print();
                     <p class="mt-8">Listelenecek ürün bulunamadı.</p>
                 </div>
 
-                <div v-else class="columns-1 gap-6 md:columns-2 print:columns-2 print:gap-4">
-                    <header class="mb-4 break-inside-avoid border-b-2 border-gray-900 pb-2 text-center">
+                <div v-else class="count-columns columns-1 gap-6 md:columns-2">
+                    <header class="count-columns-header mb-4 border-b-2 border-gray-900 pb-2 text-center">
                         <h1 class="text-xl font-semibold uppercase tracking-wide">{{ title }}</h1>
                         <p class="mt-1 text-sm text-gray-600">{{ reportDate }}</p>
                     </header>
@@ -76,7 +76,7 @@ const printPage = () => window.print();
                     <section
                         v-for="(group, index) in groups"
                         :key="`${group.main}-${group.sub}-${index}`"
-                        class="mb-4 break-inside-avoid"
+                        class="count-group mb-4"
                     >
                         <table class="w-full table-fixed border-collapse text-xs">
                             <thead>
@@ -102,7 +102,7 @@ const printPage = () => window.print();
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr v-for="product in group.products" :key="product.name" class="even:bg-gray-50">
+                                <tr v-for="product in group.products" :key="product.name" class="count-row even:bg-gray-50">
                                     <td class="truncate border-b border-gray-200 px-2 py-1 font-medium">{{ product.name }}</td>
                                     <template v-if="isAlkop">
                                         <td v-show="showQuantities" class="border-b border-gray-200 px-1 py-1 text-center">{{ product.pallet }}</td>
@@ -120,3 +120,28 @@ const printPage = () => window.print();
         </div>
     </AuthenticatedLayout>
 </template>
+
+<style>
+.count-columns-header {
+    column-span: all;
+}
+
+.count-row {
+    break-inside: avoid;
+    page-break-inside: avoid;
+}
+
+@media print {
+    .count-columns {
+        column-count: 2;
+        column-gap: 16px;
+        column-fill: auto;
+    }
+
+    .count-group,
+    .count-group table {
+        break-inside: auto;
+        page-break-inside: auto;
+    }
+}
+</style>
