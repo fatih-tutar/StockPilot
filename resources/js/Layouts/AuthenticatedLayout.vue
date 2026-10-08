@@ -74,6 +74,12 @@ const menus = computed(() => {
                     visible: allowed('quotes.view', 'quotes.manage'),
                 },
                 {
+                    label: 'Teklif listesi',
+                    href: route('offer-lists.index'),
+                    active: route().current('offer-lists.*'),
+                    visible: allowed('quotes.view', 'quotes.manage'),
+                },
+                {
                     label: 'Özel siparişler',
                     href: route('custom-orders.index'),
                     active: route().current('custom-orders.*'),

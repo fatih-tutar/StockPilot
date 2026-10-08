@@ -7,6 +7,7 @@ use App\Enums\CustomOrderStatus;
 use App\Enums\DeliveryMethod;
 use App\Enums\LeaveStatus;
 use App\Enums\MoldDocument;
+use App\Enums\OfferListStatus;
 use App\Enums\QuoteStatus;
 use App\Enums\ShipmentStatus;
 use App\Enums\StaffDocument;
@@ -34,7 +35,7 @@ use Illuminate\Support\Str;
 
 class ImportLegacyCatalog extends Command
 {
-    protected $signature = 'stockpilot:import-legacy {path : Directory with the legacy CSV exports} {--only= : Import one dataset: factories, vehicles, custom-orders, clients, visits, jobs, organizations, users, factory-orders, molds, catalog, leaves, movements, stock-activities, quotes, shipments, or inventories}';
+    protected $signature = 'stockpilot:import-legacy {path : Directory with the legacy CSV exports} {--only= : Import one dataset: factories, vehicles, custom-orders, clients, visits, jobs, organizations, users, factory-orders, molds, catalog, leaves, movements, stock-activities, quotes, shipments, inventories, or offer-lists}';
 
     protected $description = 'Import companies, categories, column layout, products, and factories from local CSV exports';
 
@@ -108,6 +109,10 @@ class ImportLegacyCatalog extends Command
 
         if ($this->option('only') === 'inventories') {
             return $this->importInventoriesOnly($path);
+        }
+
+        if ($this->option('only') === 'offer-lists') {
+            return $this->importOfferListsOnly($path);
         }
 
         foreach (['companies.csv', 'categories.csv', 'category_columns_definitions.csv', 'category_columns.csv', 'products.csv'] as $file) {
@@ -317,6 +322,10 @@ class ImportLegacyCatalog extends Command
                     $this->csv($path.'/teklif.csv'),
                     is_file($path.'/teklif_listesi.csv') ? $this->csv($path.'/teklif_listesi.csv') : [],
                 );
+            }
+
+            if (is_file($path.'/teklif_listesi.csv') && Schema::hasTable('offer_list_entries')) {
+                $this->insertOfferLists($this->csv($path.'/teklif_listesi.csv'));
             }
 
             if (is_file($path.'/sevkiyat.csv')) {
@@ -1787,6 +1796,86 @@ class ImportLegacyCatalog extends Command
         return Carbon::createFromTimestamp((int) $value);
     }
 
+    private function importOfferListsOnly(string $path): int
+    {
+        $file = $path.'/teklif_listesi.csv';
+
+        if (! is_file($file)) {
+            $this->error("Missing teklif_listesi.csv in {$path}");
+
+            return self::FAILURE;
+        }
+
+        if (! Schema::hasTable('offer_list_entries')) {
+            $this->error('Missing offer_list_entries table.');
+
+            return self::FAILURE;
+        }
+
+        $this->info('Reading offer list file.');
+        $written = $this->insertOfferLists($this->csv($file));
+        $this->info("Imported {$written} offer list rows.");
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * @param  array<int, array<string, string|null>>  $rows
+     */
+    private function insertOfferLists(array $rows): int
+    {
+        $existing = DB::table('offer_list_entries')->pluck('id')->map(fn ($id) => (int) $id)->flip();
+        $users = DB::table('users')->pluck('id')->map(fn ($id) => (int) $id)->flip();
+        $now = now();
+        $pending = [];
+        $already = 0;
+
+        foreach ($rows as $row) {
+            $id = (int) ($row['teklifid'] ?? 0);
+
+            if ($id < 1) {
+                continue;
+            }
+
+            if (isset($existing[$id])) {
+                $already++;
+
+                continue;
+            }
+
+            $userId = (int) ($row['teklifveren'] ?? 0);
+            $offeredAt = $this->unixTimestamp($row['tarih'] ?? null);
+            $pending[] = [
+                'id' => $id,
+                'company_id' => null,
+                'customer_name' => trim((string) ($row['musteri'] ?? '')),
+                'contact_name' => $this->blankToNull($row['ilgilikisi'] ?? null),
+                'product_quantity' => $this->blankToNull($row['urunmiktar'] ?? null),
+                'price' => $this->nullableMoney($row['fiyat'] ?? null),
+                'factory_name' => $this->blankToNull($row['fabrika'] ?? null),
+                'factory_price' => $this->nullableMoney($row['fabrikafiyat'] ?? null),
+                'offered_by_user_id' => isset($users[$userId]) ? $userId : null,
+                'notes' => $this->blankToNull($row['aciklama'] ?? null),
+                'offered_at' => $offeredAt?->toDateTimeString(),
+                'status' => OfferListStatus::fromLegacy((int) ($row['silik'] ?? 0))->value,
+                'created_at' => $offeredAt?->toDateTimeString() ?? $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        $this->info('Offer list rows already stored: '.$already.'. Remaining: '.count($pending).'.');
+        $written = 0;
+
+        foreach (array_chunk($pending, 100) as $chunk) {
+            DB::table('offer_list_entries')->insert($chunk);
+            $written += count($chunk);
+        }
+
+        $this->syncSequence('offer_list_entries');
+
+        return $written;
+    }
+
     private function importQuotesOnly(string $path): int
     {
         $linesFile = $path.'/teklif.csv';
@@ -2845,6 +2934,13 @@ class ImportLegacyCatalog extends Command
         $value = trim((string) $value);
 
         return $value === '' ? '0' : $value;
+    }
+
+    private function nullableMoney(?string $value): ?string
+    {
+        $value = trim((string) $value);
+
+        return $value === '' ? null : $value;
     }
 
     private function integer(?string $value): int

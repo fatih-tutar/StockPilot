@@ -12,6 +12,7 @@ use App\Http\Controllers\FactoryOrderFormController;
 use App\Http\Controllers\GoodsFlowController;
 use App\Http\Controllers\LeaveController;
 use App\Http\Controllers\MoldController;
+use App\Http\Controllers\OfferListController;
 use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
@@ -120,6 +121,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('organization', [OrganizationController::class, 'update'])->name('organization.update');
 
     Route::resource('quotes', QuoteController::class)->except(['show']);
+
+    Route::get('offer-lists/archive', [OfferListController::class, 'archive'])->name('offer-lists.archive');
+    Route::post('offer-lists/{offer_list_entry}/archive-positive', [OfferListController::class, 'archivePositive'])->name('offer-lists.archive-positive');
+    Route::post('offer-lists/{offer_list_entry}/archive-negative', [OfferListController::class, 'archiveNegative'])->name('offer-lists.archive-negative');
+    Route::post('offer-lists/{offer_list_entry}/restore', [OfferListController::class, 'restore'])->name('offer-lists.restore');
+    Route::resource('offer-lists', OfferListController::class)
+        ->except(['show'])
+        ->parameters(['offer-lists' => 'offer_list_entry']);
 
     Route::resource('shipments', ShipmentController::class)->except(['show']);
 });
