@@ -3,6 +3,7 @@
 use App\Http\Controllers\CatalogItemController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ClientController;
+use App\Http\Controllers\CountReportController;
 use App\Http\Controllers\CustomerVisitController;
 use App\Http\Controllers\CustomOrderController;
 use App\Http\Controllers\DashboardController;
@@ -52,6 +53,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('stock-activities', [StockActivityController::class, 'index'])->name('stock-activities.index');
     Route::post('products/{product}/adjust-stock', [ProductController::class, 'adjust'])
         ->name('products.adjust-stock');
+    Route::get('count-reports', [CountReportController::class, 'index'])->name('count-reports.index');
 
     Route::resource('clients', ClientController::class)->except(['show']);
 

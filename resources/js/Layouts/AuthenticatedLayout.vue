@@ -39,6 +39,12 @@ const menus = computed(() => {
                     visible: allowed('stock.view', 'stock.manage'),
                 },
                 {
+                    label: 'Sayım raporu',
+                    href: route('count-reports.index'),
+                    active: route().current('count-reports.*'),
+                    visible: allowed('count_reports.view'),
+                },
+                {
                     label: 'Kategoriler',
                     href: route('categories.index'),
                     active: route().current('categories.*'),
@@ -347,7 +353,7 @@ const menus = computed(() => {
                 </div>
             </nav>
 
-            <header v-if="$slots.header" class="bg-white shadow">
+            <header v-if="$slots.header" class="bg-white shadow print:hidden">
                 <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
                     <slot name="header" />
                 </div>

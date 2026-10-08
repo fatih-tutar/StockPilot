@@ -57,6 +57,7 @@ class AccessRoles
             'visits' => ['visits.view', 'visits.manage'],
             'shipments' => ['shipments.view', 'shipments.manage'],
             'vehicles' => ['vehicles.view', 'vehicles.manage'],
+            'count_report' => ['count_reports.view'],
         ];
     }
 
@@ -122,6 +123,7 @@ class AccessRoles
             'catalog' => 'Fiyat listesi',
             'shipments' => 'Sevkiyatlar',
             'vehicles' => 'Araçlar',
+            'count_reports' => 'Sayım raporu',
             'goods_flows' => 'Gelen giden',
             'work_tasks' => 'İşler',
             'leaves' => 'İzinler',

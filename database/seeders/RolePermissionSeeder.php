@@ -49,6 +49,7 @@ class RolePermissionSeeder extends Seeder
             'quotes.manage',
             'shipments.view',
             'shipments.manage',
+            'count_reports.view',
         ];
 
         foreach ($permissions as $permission) {
