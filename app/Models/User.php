@@ -27,7 +27,7 @@ use Spatie\Permission\Traits\HasRoles;
     'title',
     'hired_on',
     'access_level',
-    'access_flags',
+    'in_office',
     'is_active',
 ])]
 #[Hidden(['password', 'remember_token'])]
@@ -61,7 +61,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'hired_on' => 'date',
             'access_level' => UserAccessLevel::class,
-            'access_flags' => 'array',
+            'in_office' => 'boolean',
             'is_active' => 'boolean',
         ];
     }

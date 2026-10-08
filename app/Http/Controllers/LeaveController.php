@@ -80,7 +80,7 @@ class LeaveController extends Controller
             'return_on' => $return->toDateString(),
             'leave_days' => LeaveRules::dayCount($start, $return),
             'status' => LeaveStatus::Pending,
-            'in_office' => (bool) ($subject->access_flags['office'] ?? false),
+            'in_office' => (bool) $subject->in_office,
         ]);
 
         return redirect()

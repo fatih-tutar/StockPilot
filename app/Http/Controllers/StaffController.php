@@ -73,6 +73,7 @@ class StaffController extends Controller
     {
         $staff = User::query()->create($this->attributes($request));
         $staff->syncRoles([$request->validated('access_level')]);
+        $this->syncAccess($request, $staff);
         $this->storeDocuments($request, $staff);
 
         return redirect()
@@ -99,7 +100,7 @@ class StaffController extends Controller
                 'access_level' => $staff->roles->first()?->name
                     ?? AccessRoles::roleFor($staff->access_level)
                     ?? 'staff',
-                'access_flags' => StaffAccess::fromInput($staff->access_flags ?? []),
+                'access_flags' => AccessRoles::storedFlags($staff),
                 'is_active' => $staff->is_active,
                 'documents' => collect(StaffDocument::cases())
                     ->mapWithKeys(fn (StaffDocument $document) => [
@@ -116,6 +117,7 @@ class StaffController extends Controller
         $this->ensurePersonnel($staff);
         $staff->update($this->attributes($request));
         $staff->syncRoles([$request->validated('access_level')]);
+        $this->syncAccess($request, $staff);
         $this->storeDocuments($request, $staff);
 
         return redirect()
@@ -164,7 +166,6 @@ class StaffController extends Controller
             'title' => $request->validated('title'),
             'hired_on' => $request->validated('hired_on'),
             'access_level' => AccessRoles::accessLevelFor($request->validated('access_level')),
-            'access_flags' => StaffAccess::fromInput($request->validated('access_flags') ?? []),
             'is_active' => $request->boolean('is_active'),
         ];
 
@@ -173,6 +174,13 @@ class StaffController extends Controller
         }
 
         return $attributes;
+    }
+
+    private function syncAccess(StoreStaffRequest|UpdateStaffRequest $request, User $staff): void
+    {
+        $flags = StaffAccess::fromInput($request->validated('access_flags') ?? []);
+        $staff->forceFill(['in_office' => $flags['office']])->save();
+        AccessRoles::syncFlagPermissions($staff, $flags);
     }
 
     private function storeDocuments(Request $request, User $staff): void

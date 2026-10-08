@@ -41,21 +41,27 @@ class AccessRoles
     }
 
     /**
-     * Old screen flags that open a page, and the permissions that page uses.
+     * Screen flags stored as permission rows. Office is a person column, not a permission.
      *
      * @return array<string, list<string>>
      */
     public static function flagPermissions(): array
     {
         return [
+            'purchase' => ['columns.purchase'],
             'factory' => ['factories.view', 'factories.manage'],
             'quotes' => ['quotes.view', 'quotes.manage'],
             'orders' => ['custom_orders.view', 'custom_orders.manage', 'factory_orders.view', 'factory_orders.manage'],
+            'editing' => ['records.edit'],
             'movements' => ['stock.view', 'stock.manage'],
             'cashflow' => ['goods_flows.view', 'goods_flows.manage'],
             'sale_price' => ['catalog.view', 'catalog.manage'],
+            'totals' => ['totals.view'],
             'visits' => ['visits.view', 'visits.manage'],
             'shipments' => ['shipments.view', 'shipments.manage'],
+            'piece_quantity' => ['columns.piece'],
+            'pallet_quantity' => ['columns.pallet'],
+            'alkop' => ['columns.alkop'],
             'vehicles' => ['vehicles.view', 'vehicles.manage'],
             'count_report' => ['count_reports.view'],
         ];
@@ -81,29 +87,67 @@ class AccessRoles
     }
 
     /**
-     * Column gates from the old screen flags. Managers see every column.
+     * Column gates stored as permissions. Managers see every column.
      *
      * @return array{piece: bool, pallet: bool, alkop: bool, purchase: bool, sale: bool}
      */
     public static function visibleColumns(User $user): array
     {
-        $flags = $user->access_flags ?? [];
         $seesAll = $user->hasRole('admin') || $user->access_level === UserAccessLevel::Manager;
-        $enabled = function (string $key) use ($flags, $seesAll): bool {
+        $enabled = function (string $permission) use ($user, $seesAll): bool {
             if ($seesAll) {
                 return true;
             }
 
-            return filter_var($flags[$key] ?? false, FILTER_VALIDATE_BOOLEAN);
+            return $user->hasPermissionTo($permission);
         };
 
         return [
-            'piece' => $enabled('piece_quantity'),
-            'pallet' => $enabled('pallet_quantity'),
-            'alkop' => $enabled('alkop'),
-            'purchase' => $enabled('purchase'),
-            'sale' => $enabled('sale_price'),
+            'piece' => $enabled('columns.piece'),
+            'pallet' => $enabled('columns.pallet'),
+            'alkop' => $enabled('columns.alkop'),
+            'purchase' => $enabled('columns.purchase'),
+            'sale' => $enabled('catalog.view'),
         ];
+    }
+
+    /**
+     * Checkbox values for the staff form, from direct permissions and the office column.
+     *
+     * @return array<string, bool>
+     */
+    public static function storedFlags(User $user): array
+    {
+        $direct = $user->getDirectPermissions()->pluck('name')->flip();
+        $flags = [];
+
+        foreach (StaffAccess::keys() as $key) {
+            if ($key === 'office') {
+                $flags[$key] = (bool) $user->in_office;
+
+                continue;
+            }
+
+            $permissions = self::flagPermissions()[$key] ?? [];
+            $flags[$key] = $permissions !== [] && collect($permissions)->every(
+                fn (string $name): bool => $direct->has($name),
+            );
+        }
+
+        return $flags;
+    }
+
+    /**
+     * @param  array<string, mixed>  $flags
+     */
+    public static function syncFlagPermissions(User $user, array $flags): void
+    {
+        foreach (array_merge(...array_values(self::flagPermissions())) as $name) {
+            Permission::findOrCreate($name);
+        }
+
+        $user->syncPermissions(self::permissionsForFlags($flags));
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 
     /**
@@ -124,6 +168,9 @@ class AccessRoles
             'shipments' => 'Sevkiyatlar',
             'vehicles' => 'Araçlar',
             'count_reports' => 'Sayım raporu',
+            'columns' => 'Sütunlar',
+            'totals' => 'Toplamlar',
+            'records' => 'Düzenleme',
             'goods_flows' => 'Gelen giden',
             'work_tasks' => 'İşler',
             'leaves' => 'İzinler',
@@ -134,6 +181,11 @@ class AccessRoles
         $actionLabels = [
             'view' => 'Görüntüleme',
             'manage' => 'Düzenleme',
+            'piece' => 'Adet',
+            'pallet' => 'Palet',
+            'alkop' => 'Alkop',
+            'purchase' => 'Alış',
+            'edit' => 'Düzenleme',
         ];
 
         $groups = [];
@@ -170,12 +222,11 @@ class AccessRoles
         return $ordered;
     }
 
+    /**
+     * Assign each person's role from the stored access level.
+     */
     public static function grantStoredFlags(): void
     {
-        foreach (array_merge(...array_values(self::flagPermissions())) as $name) {
-            Permission::findOrCreate($name);
-        }
-
         Role::findOrCreate('admin');
         Role::findOrCreate('staff');
         Role::findOrCreate('supervisor');
@@ -185,12 +236,6 @@ class AccessRoles
 
             if ($role !== null) {
                 $user->syncRoles([$role]);
-            }
-
-            $permissions = self::permissionsForFlags($user->access_flags ?? []);
-
-            if ($permissions !== []) {
-                $user->givePermissionTo($permissions);
             }
         });
 

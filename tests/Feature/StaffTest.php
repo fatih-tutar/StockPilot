@@ -9,6 +9,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
@@ -151,7 +152,8 @@ class StaffTest extends TestCase
         $this->assertSame('Deneme Personel', $imported->name);
         $this->assertSame($company->id, $imported->company_id);
         $this->assertSame('2019-06-01', $imported->hired_on?->toDateString());
-        $this->assertTrue($imported->access_flags['purchase']);
+        $this->assertTrue($imported->hasPermissionTo('columns.purchase'));
+        $this->assertFalse($imported->in_office);
         $this->assertNotSame($legacyPassword, $imported->password);
         $this->assertFalse(Hash::check($legacyPassword, $imported->password));
         $this->assertNotNull($imported->media()->where('collection', 'photo')->whereNull('path')->first());
@@ -167,5 +169,48 @@ class StaffTest extends TestCase
         $this->assertTrue(Hash::check('password', $moved->password));
 
         $this->assertSame(1, OrganizationMember::query()->find(5)?->user_id);
+    }
+
+    public function test_saving_staff_flags_grants_and_removes_direct_permissions(): void
+    {
+        $actor = $this->userWithPermission('users.manage');
+
+        $this->actingAs($actor)
+            ->post(route('staff.store'), [
+                'name' => 'Yetkili Personel',
+                'email' => 'yetkili@example.com',
+                'access_level' => 'staff',
+                'password' => 'password1',
+                'password_confirmation' => 'password1',
+                'is_active' => true,
+                'access_flags' => [
+                    'piece_quantity' => true,
+                    'office' => true,
+                ],
+            ])
+            ->assertRedirect();
+
+        $staff = User::query()->where('email', 'yetkili@example.com')->first();
+        $this->assertNotNull($staff);
+        $this->assertTrue($staff->in_office);
+        $this->assertTrue($staff->hasPermissionTo('columns.piece'));
+        $this->assertFalse(Schema::hasColumn('users', 'access_flags'));
+
+        $this->actingAs($actor)
+            ->put(route('staff.update', $staff), [
+                'name' => 'Yetkili Personel',
+                'email' => 'yetkili@example.com',
+                'access_level' => 'staff',
+                'is_active' => true,
+                'access_flags' => [
+                    'piece_quantity' => false,
+                    'office' => false,
+                ],
+            ])
+            ->assertRedirect();
+
+        $staff->refresh();
+        $this->assertFalse($staff->in_office);
+        $this->assertFalse($staff->hasPermissionTo('columns.piece'));
     }
 }

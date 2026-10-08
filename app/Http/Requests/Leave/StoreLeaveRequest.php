@@ -66,7 +66,7 @@ class StoreLeaveRequest extends FormRequest
                 $validator,
                 $this->user(),
                 $subject,
-                (bool) ($subject->access_flags['office'] ?? false),
+                (bool) $subject->in_office,
                 $subject->company_id,
                 $this->date('start_on'),
                 $this->date('return_on'),

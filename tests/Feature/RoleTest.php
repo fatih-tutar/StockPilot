@@ -26,12 +26,12 @@ class RoleTest extends TestCase
     {
         $user = User::factory()->create([
             'access_level' => UserAccessLevel::Supervisor,
-            'access_flags' => [
-                'visits' => true,
-                'vehicles' => false,
-            ],
         ]);
 
+        AccessRoles::syncFlagPermissions($user, [
+            'visits' => true,
+            'vehicles' => false,
+        ]);
         AccessRoles::grantStoredFlags();
 
         $user->refresh();
@@ -95,18 +95,11 @@ class RoleTest extends TestCase
         ]);
         $hidden = User::factory()->create([
             'access_level' => UserAccessLevel::Staff,
-            'access_flags' => [
-                'piece_quantity' => false,
-                'pallet_quantity' => false,
-            ],
         ]);
         $pieceOnly = User::factory()->create([
             'access_level' => UserAccessLevel::Staff,
-            'access_flags' => [
-                'piece_quantity' => true,
-                'pallet_quantity' => false,
-            ],
         ]);
+        $pieceOnly->givePermissionTo('columns.piece');
 
         $this->actingAs($hidden)
             ->get(route('products.index'))

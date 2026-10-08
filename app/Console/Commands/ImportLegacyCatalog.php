@@ -21,6 +21,7 @@ use App\Models\OrganizationMember;
 use App\Models\Product;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Support\AccessRoles;
 use App\Support\LeaveRules;
 use App\Support\StaffAccess;
 use Carbon\Exceptions\InvalidFormatException;
@@ -690,6 +691,7 @@ class ImportLegacyCatalog extends Command
                 $now = now();
                 $deleted = ($row['is_deleted'] ?? '0') === '1';
 
+                $flags = StaffAccess::fromLegacy($row['permissions'] ?? null);
                 $payload = [
                     'company_id' => $companyIds->has($companyId) ? $companyId : null,
                     'name' => $this->blankToNull($row['name'] ?? null) ?? 'Personel',
@@ -700,7 +702,7 @@ class ImportLegacyCatalog extends Command
                     'title' => $this->blankToNull($row['title'] ?? null),
                     'hired_on' => $this->legacyDay($row['hire_date'] ?? null),
                     'access_level' => UserAccessLevel::fromLegacy((int) ($row['type'] ?? 0))->value,
-                    'access_flags' => json_encode(StaffAccess::fromLegacy($row['permissions'] ?? null)),
+                    'in_office' => $flags['office'],
                     'is_active' => ($row['is_passive'] ?? '0') !== '1',
                     'deleted_at' => $deleted ? $now : null,
                     'updated_at' => $now,
@@ -712,6 +714,11 @@ class ImportLegacyCatalog extends Command
                 }
 
                 DB::table('users')->updateOrInsert(['id' => $id], $payload);
+                $importedUser = User::withTrashed()->find($id);
+
+                if ($importedUser !== null) {
+                    AccessRoles::syncFlagPermissions($importedUser, $flags);
+                }
 
                 foreach (StaffDocument::cases() as $document) {
                     $this->rememberStaffFile($id, $document, $row[$document->value] ?? null);

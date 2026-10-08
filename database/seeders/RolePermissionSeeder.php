@@ -50,6 +50,12 @@ class RolePermissionSeeder extends Seeder
             'shipments.view',
             'shipments.manage',
             'count_reports.view',
+            'columns.piece',
+            'columns.pallet',
+            'columns.alkop',
+            'columns.purchase',
+            'totals.view',
+            'records.edit',
         ];
 
         foreach ($permissions as $permission) {

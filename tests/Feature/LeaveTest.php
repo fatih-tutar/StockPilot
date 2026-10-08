@@ -38,7 +38,7 @@ class LeaveTest extends TestCase
         $user = User::factory()->create([
             'company_id' => $companyId,
             'hired_on' => '2020-01-01',
-            'access_flags' => ['office' => false],
+            'in_office' => false,
             ...$overrides,
         ]);
         $user->givePermissionTo($manage ? ['leaves.view', 'leaves.manage'] : ['leaves.view']);
@@ -52,7 +52,7 @@ class LeaveTest extends TestCase
         $company = Company::factory()->create();
         $other = Company::factory()->create();
         $staff = $this->person($company->id, overrides: [
-            'access_flags' => ['office' => true],
+            'in_office' => true,
         ]);
 
         $this->actingAs($staff)
@@ -154,9 +154,9 @@ class LeaveTest extends TestCase
         $this->travelTo('2026-02-10');
         $company = Company::factory()->create();
         $otherCompany = Company::factory()->create();
-        $office = $this->person($company->id, overrides: ['access_flags' => ['office' => true]]);
-        $colleague = $this->person($company->id, overrides: ['access_flags' => ['office' => true]]);
-        $floor = $this->person($company->id, overrides: ['access_flags' => ['office' => false]]);
+        $office = $this->person($company->id, overrides: ['in_office' => true]);
+        $colleague = $this->person($company->id, overrides: ['in_office' => true]);
+        $floor = $this->person($company->id, overrides: ['in_office' => false]);
         Leave::factory()->create([
             'company_id' => $otherCompany->id,
             'user_id' => User::factory()->create(['company_id' => $otherCompany->id])->id,
@@ -234,7 +234,7 @@ class LeaveTest extends TestCase
         $staff = User::factory()->create([
             'company_id' => $company->id,
             'hired_on' => '2010-01-01',
-            'access_flags' => ['office' => false],
+            'in_office' => false,
         ]);
         $manager = $this->person($company->id, true, [
             'hired_on' => '2010-01-01',
