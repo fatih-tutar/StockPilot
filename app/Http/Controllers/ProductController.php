@@ -84,7 +84,7 @@ class ProductController extends Controller
                 'search' => $search,
                 'category_id' => $categoryId,
             ],
-            'categories' => Category::query()->orderBy('name')->get(['id', 'name']),
+            'categories' => Category::query()->orderBy('name')->get(['id', 'name', 'parent_id']),
             'sheet' => $category === null ? null : $sheet,
             'factories' => Factory::query()->orderBy('name')->get(['id', 'name']),
             'staff' => User::query()->orderBy('name')->get(['id', 'name']),

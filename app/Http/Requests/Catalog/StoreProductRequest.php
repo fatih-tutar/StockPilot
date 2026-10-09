@@ -16,7 +16,11 @@ class StoreProductRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'category_id' => ['required', 'integer', Rule::exists('categories', 'id')->whereNull('deleted_at')],
+            'category_id' => [
+                'required',
+                'integer',
+                Rule::exists('categories', 'id')->whereNull('deleted_at')->whereNotNull('parent_id'),
+            ],
             'sku' => ['nullable', 'string', 'max:100', 'unique:products,sku'],
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -35,6 +39,17 @@ class StoreProductRequest extends FormRequest
             'warehouse_low_stock_threshold' => ['nullable', 'integer', 'min:0'],
             'low_stock_threshold' => ['nullable', 'integer', 'min:0'],
             'is_active' => ['sometimes', 'boolean'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'category_id.required' => 'Alt kategori seçin.',
+            'category_id.exists' => 'Ürün yalnızca bir alt kategoriye eklenebilir.',
         ];
     }
 }

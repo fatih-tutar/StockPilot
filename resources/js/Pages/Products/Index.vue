@@ -29,6 +29,7 @@ const flashError = computed(() => page.props.flash?.error);
 const search = ref(props.filters.search || '');
 const categoryId = ref(props.filters.category_id || '');
 const showForm = ref(false);
+const parentCategoryId = ref('');
 const form = useForm({
     category_id: '',
     sku: '',
@@ -40,17 +41,72 @@ const form = useForm({
     is_active: true,
 });
 
+const mainCategories = computed(() => props.categories.filter((category) => category.parent_id === null));
+
+const subcategories = computed(() => {
+    if (parentCategoryId.value === '' || parentCategoryId.value === null) {
+        return [];
+    }
+
+    const byId = new Map(props.categories.map((category) => [category.id, category]));
+    const rootId = Number(parentCategoryId.value);
+
+    const rootOf = (category) => {
+        let current = category;
+        const seen = new Set();
+
+        while (current.parent_id && !seen.has(current.id)) {
+            seen.add(current.id);
+            const parent = byId.get(current.parent_id);
+
+            if (!parent) {
+                break;
+            }
+
+            current = parent;
+        }
+
+        return current;
+    };
+
+    return props.categories.filter(
+        (category) => category.parent_id !== null && rootOf(category).id === rootId,
+    );
+});
+
 const openCreate = () => {
+    parentCategoryId.value = '';
     form.reset();
     form.clearErrors();
     showForm.value = true;
 };
+
+watch(parentCategoryId, () => {
+    form.category_id = '';
+    form.clearErrors('category_id');
+    form.clearErrors('parent_category_id');
+});
 
 const closeForm = () => {
     showForm.value = false;
 };
 
 const submit = () => {
+    form.clearErrors('parent_category_id');
+    form.clearErrors('category_id');
+
+    if (parentCategoryId.value === '' || parentCategoryId.value === null) {
+        form.setError('parent_category_id', 'Ana kategori seçin.');
+    }
+
+    if (form.category_id === '' || form.category_id === null) {
+        form.setError('category_id', 'Alt kategori seçin.');
+    }
+
+    if (form.errors.parent_category_id || form.errors.category_id) {
+        return;
+    }
+
     form.transform((data) => ({
         ...data,
         category_id: Number(data.category_id),
@@ -320,16 +376,36 @@ watch(
                         <InputError class="mt-2" :message="form.errors.sku" />
                     </div>
                     <div>
-                        <InputLabel for="product_category_id" value="Kategori" />
+                        <InputLabel for="product_parent_category_id" value="Ana kategori" />
+                        <select
+                            id="product_parent_category_id"
+                            v-model="parentCategoryId"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        >
+                            <option value="">Ana kategori seçin</option>
+                            <option
+                                v-for="category in mainCategories"
+                                :key="category.id"
+                                :value="category.id"
+                            >
+                                {{ category.name }}
+                            </option>
+                        </select>
+                        <InputError class="mt-2" :message="form.errors.parent_category_id" />
+                    </div>
+                    <div>
+                        <InputLabel for="product_category_id" value="Alt kategori" />
                         <select
                             id="product_category_id"
                             v-model="form.category_id"
                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                            required
+                            :disabled="parentCategoryId === '' || parentCategoryId === null"
                         >
-                            <option value="" disabled>Kategori seçin</option>
+                            <option value="">
+                                {{ parentCategoryId === '' || parentCategoryId === null ? 'Önce ana kategori seçin' : 'Alt kategori seçin' }}
+                            </option>
                             <option
-                                v-for="category in categories"
+                                v-for="category in subcategories"
                                 :key="category.id"
                                 :value="category.id"
                             >
