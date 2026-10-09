@@ -9,7 +9,7 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import Actions from '@/Pages/Products/Actions.vue';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 
 const props = defineProps({
     products: { type: Object, required: true },
@@ -27,9 +27,48 @@ const flashSuccess = computed(() => page.props.flash?.success);
 const flashError = computed(() => page.props.flash?.error);
 
 const search = ref(props.filters.search || '');
-const categoryId = ref(props.filters.category_id || '');
 const showForm = ref(false);
 const parentCategoryId = ref('');
+
+const categoriesById = computed(() => new Map(props.categories.map((category) => [category.id, category])));
+
+const rootOf = (category) => {
+    let current = category;
+    const seen = new Set();
+
+    while (current?.parent_id && !seen.has(current.id)) {
+        seen.add(current.id);
+        const parent = categoriesById.value.get(current.parent_id);
+
+        if (!parent) {
+            break;
+        }
+
+        current = parent;
+    }
+
+    return current;
+};
+
+const descendantsOf = (rootValue) => {
+    if (rootValue === '' || rootValue === null || rootValue === undefined) {
+        return [];
+    }
+
+    const rootId = Number(rootValue);
+
+    return props.categories.filter(
+        (category) => category.parent_id !== null && rootOf(category)?.id === rootId,
+    );
+};
+
+const incomingCategory = props.categories.find(
+    (category) => String(category.id) === String(props.filters.category_id || ''),
+);
+const incomingIsSubcategory = incomingCategory?.parent_id != null;
+
+const categoryId = ref(incomingIsSubcategory ? props.filters.category_id : '');
+const filterParentId = ref(incomingCategory ? String(rootOf(incomingCategory).id) : '');
 const form = useForm({
     category_id: '',
     sku: '',
@@ -55,35 +94,39 @@ const form = useForm({
 
 const mainCategories = computed(() => props.categories.filter((category) => category.parent_id === null));
 
-const subcategories = computed(() => {
-    if (parentCategoryId.value === '' || parentCategoryId.value === null) {
-        return [];
-    }
+const subcategories = computed(() => descendantsOf(parentCategoryId.value));
 
-    const byId = new Map(props.categories.map((category) => [category.id, category]));
-    const rootId = Number(parentCategoryId.value);
+const filterSubcategories = computed(() => descendantsOf(filterParentId.value));
 
-    const rootOf = (category) => {
-        let current = category;
-        const seen = new Set();
+const selectMainCategory = (id) => {
+    filterParentId.value = id;
 
-        while (current.parent_id && !seen.has(current.id)) {
-            seen.add(current.id);
-            const parent = byId.get(current.parent_id);
-
-            if (!parent) {
-                break;
-            }
-
-            current = parent;
-        }
-
-        return current;
-    };
-
-    return props.categories.filter(
-        (category) => category.parent_id !== null && rootOf(category).id === rootId,
+    const stillVisible = filterSubcategories.value.some(
+        (category) => String(category.id) === String(categoryId.value),
     );
+
+    if (!stillVisible) {
+        categoryId.value = '';
+    }
+};
+
+const selectSubcategory = (id) => {
+    categoryId.value = id;
+};
+
+onMounted(() => {
+    if (props.filters.category_id && !incomingIsSubcategory) {
+        router.get(
+            route('products.index'),
+            {
+                search: search.value || undefined,
+            },
+            {
+                preserveState: true,
+                replace: true,
+            },
+        );
+    }
 });
 
 const selectedCategory = computed(() =>
@@ -214,8 +257,8 @@ watch(
                     {{ flashError }}
                 </div>
 
-                <div class="grid gap-4 bg-white p-4 shadow-sm sm:grid-cols-2 sm:rounded-lg">
-                    <div>
+                <div class="space-y-4 bg-white p-4 shadow-sm sm:rounded-lg">
+                    <div class="max-w-md">
                         <InputLabel for="search" value="Ara" />
                         <TextInput
                             id="search"
@@ -224,27 +267,51 @@ watch(
                             placeholder="Ad veya kod"
                         />
                     </div>
-                    <div>
-                        <InputLabel for="category_id" value="Kategori" />
-                        <select
-                            id="category_id"
-                            v-model="categoryId"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                        >
-                            <option value="">Tüm kategoriler</option>
-                            <option
-                                v-for="category in categories"
+                    <div class="flex flex-col gap-2">
+                        <p class="text-sm font-medium text-gray-700">Ana kategori</p>
+                        <div class="flex flex-wrap gap-2" role="tablist" aria-label="Ana kategori">
+                            <button
+                                v-for="category in mainCategories"
                                 :key="category.id"
-                                :value="category.id"
+                                type="button"
+                                role="tab"
+                                class="rounded-md px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                                :class="
+                                    String(filterParentId) === String(category.id)
+                                        ? 'bg-gray-800 text-white'
+                                        : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                                "
+                                :aria-selected="String(filterParentId) === String(category.id)"
+                                @click="selectMainCategory(category.id)"
                             >
                                 {{ category.name }}
-                            </option>
-                        </select>
+                            </button>
+                        </div>
+                    </div>
+                    <div v-if="filterSubcategories.length" class="flex flex-col gap-2">
+                        <p class="text-sm font-medium text-gray-700">Alt kategori</p>
+                        <div class="flex flex-wrap gap-2" role="group" aria-label="Alt kategori">
+                            <button
+                                v-for="category in filterSubcategories"
+                                :key="category.id"
+                                type="button"
+                                class="rounded-md border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                                :class="
+                                    String(categoryId) === String(category.id)
+                                        ? 'border-gray-800 bg-gray-800 text-white'
+                                        : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                                "
+                                :aria-pressed="String(categoryId) === String(category.id)"
+                                @click="selectSubcategory(category.id)"
+                            >
+                                {{ category.name }}
+                            </button>
+                        </div>
                     </div>
                 </div>
 
                 <p v-if="!sheet" class="text-sm text-gray-500">
-                    Bir kategori seçildiğinde liste, o kategorinin sütunlarına göre açılır.
+                    Bir alt kategori seçildiğinde liste, o kategorinin sütunlarına göre açılır.
                 </p>
 
                 <div v-if="sheet" class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
