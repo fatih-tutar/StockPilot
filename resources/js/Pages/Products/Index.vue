@@ -8,6 +8,7 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import Actions from '@/Pages/Products/Actions.vue';
+import RowMenu from '@/Pages/Products/RowMenu.vue';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, onMounted, ref, watch } from 'vue';
 
@@ -112,6 +113,31 @@ const selectMainCategory = (id) => {
 
 const selectSubcategory = (id) => {
     categoryId.value = id;
+};
+
+const actionNames = ['offer_button', 'order_button', 'shipment_button', 'edit_button'];
+const openForm = ref(null);
+
+const actionsFor = (product) => {
+    if (props.sheet) {
+        return props.sheet.actions;
+    }
+
+    const category = props.categories.find(
+        (item) => String(item.id) === String(product.category?.id),
+    );
+
+    return (category?.fields ?? []).filter((name) => actionNames.includes(name));
+};
+
+const selectAction = (product, name) => {
+    if (openForm.value?.id === product.id && openForm.value?.name === name) {
+        openForm.value = null;
+
+        return;
+    }
+
+    openForm.value = { id: product.id, name };
 };
 
 onMounted(() => {
@@ -257,45 +283,47 @@ watch(
                     {{ flashError }}
                 </div>
 
-                <div class="space-y-4 bg-white p-4 shadow-sm sm:rounded-lg">
-                    <div class="max-w-md">
-                        <InputLabel for="search" value="Ara" />
-                        <TextInput
-                            id="search"
-                            v-model="search"
-                            class="mt-1 block w-full"
-                            placeholder="Ad veya kod"
-                        />
-                    </div>
-                    <div class="flex flex-col gap-2">
-                        <p class="text-sm font-medium text-gray-700">Ana kategori</p>
-                        <div class="flex flex-wrap gap-2" role="tablist" aria-label="Ana kategori">
-                            <button
-                                v-for="category in mainCategories"
-                                :key="category.id"
-                                type="button"
-                                role="tab"
-                                class="rounded-md px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                                :class="
-                                    String(filterParentId) === String(category.id)
-                                        ? 'bg-gray-800 text-white'
-                                        : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-                                "
-                                :aria-selected="String(filterParentId) === String(category.id)"
-                                @click="selectMainCategory(category.id)"
-                            >
-                                {{ category.name }}
-                            </button>
+                <div class="flex flex-col gap-4 bg-white p-4 shadow-sm sm:rounded-lg">
+                    <div class="flex flex-col gap-4 md:flex-row md:items-end">
+                        <div class="flex w-full shrink-0 flex-col gap-2 md:w-64">
+                            <InputLabel for="search" value="Ara" />
+                            <TextInput
+                                id="search"
+                                v-model="search"
+                                class="block w-full"
+                                placeholder="Ad veya kod"
+                            />
+                        </div>
+                        <div class="flex min-w-0 flex-1 flex-col gap-2">
+                            <p class="text-sm font-medium text-gray-700">Ana kategori</p>
+                            <div class="flex flex-wrap gap-2" role="tablist" aria-label="Ana kategori">
+                                <button
+                                    v-for="category in mainCategories"
+                                    :key="category.id"
+                                    type="button"
+                                    role="tab"
+                                    class="rounded-md px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                                    :class="
+                                        String(filterParentId) === String(category.id)
+                                            ? 'bg-gray-800 text-white'
+                                            : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                                    "
+                                    :aria-selected="String(filterParentId) === String(category.id)"
+                                    @click="selectMainCategory(category.id)"
+                                >
+                                    {{ category.name }}
+                                </button>
+                            </div>
                         </div>
                     </div>
                     <div v-if="filterSubcategories.length" class="flex flex-col gap-2">
                         <p class="text-sm font-medium text-gray-700">Alt kategori</p>
-                        <div class="flex flex-wrap gap-2" role="group" aria-label="Alt kategori">
+                        <div class="flex flex-wrap gap-1" role="group" aria-label="Alt kategori">
                             <button
                                 v-for="category in filterSubcategories"
                                 :key="category.id"
                                 type="button"
-                                class="rounded-md border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                                class="whitespace-nowrap rounded border px-1 py-0.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
                                 :class="
                                     String(categoryId) === String(category.id)
                                         ? 'border-gray-800 bg-gray-800 text-white'
@@ -314,48 +342,54 @@ watch(
                     Bir alt kategori seçildiğinde liste, o kategorinin sütunlarına göre açılır.
                 </p>
 
-                <div v-if="sheet" class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
+                <div v-if="sheet" class="overflow-visible bg-white shadow-sm sm:rounded-lg">
                     <table class="min-w-full divide-y divide-gray-200 text-sm">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-4 py-3 text-left font-medium text-gray-600">Ürün</th>
+                                <th class="w-10 px-2 py-3">
+                                    <span class="sr-only">İşlemler</span>
+                                </th>
+                                <th class="w-[28%] px-4 py-3 text-left font-medium text-gray-600">Ürün</th>
                                 <th
                                     v-for="column in sheet.columns"
                                     :key="column.name"
                                     class="px-4 py-3 text-left font-medium text-gray-600"
+                                    :class="column.name === 'factory' ? 'w-[18%] whitespace-nowrap' : 'whitespace-nowrap'"
                                 >
                                     {{ column.label }}
                                 </th>
-                                <th class="px-4 py-3 text-right font-medium text-gray-600">İşlemler</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
                             <template v-for="product in products.data" :key="product.id">
                                 <tr>
-                                    <td class="px-4 py-3 font-medium text-gray-900">{{ product.name }}</td>
+                                    <td class="px-2 py-2">
+                                        <RowMenu
+                                            :product-id="product.id"
+                                            :actions="actionsFor(product)"
+                                            @select="selectAction(product, $event)"
+                                        />
+                                    </td>
+                                    <td class="w-[28%] px-4 py-3 font-medium text-gray-900">{{ product.name }}</td>
                                     <td
                                         v-for="column in sheet.columns"
                                         :key="column.name"
                                         class="px-4 py-3 text-gray-700"
+                                        :class="column.name === 'factory' ? 'w-[18%] whitespace-nowrap' : 'whitespace-nowrap'"
                                     >
                                         {{ product.cells?.[column.name] ?? '—' }}
                                     </td>
-                                    <td class="px-4 py-3 text-right">
-                                        <Link
-                                            :href="route('products.edit', product.id)"
-                                            class="text-sm text-indigo-600 hover:text-indigo-800"
-                                        >
-                                            Aç
-                                        </Link>
-                                    </td>
                                 </tr>
-                                <tr v-if="sheet.actions.length">
+                                <tr v-if="openForm?.id === product.id">
                                     <td :colspan="sheet.columns.length + 2" class="px-4 pb-4">
                                         <Actions
                                             :product="product"
-                                            :actions="sheet.actions"
+                                            :actions="actionsFor(product)"
                                             :factories="factories"
                                             :staff="staff"
+                                            :buttons="false"
+                                            :active="openForm.name"
+                                            @close="openForm = null"
                                         />
                                     </td>
                                 </tr>
@@ -369,20 +403,30 @@ watch(
                     </table>
                 </div>
 
-                <div v-else class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
+                <div v-else class="overflow-visible bg-white shadow-sm sm:rounded-lg">
                     <table class="min-w-full divide-y divide-gray-200 text-sm">
                         <thead class="bg-gray-50">
                             <tr>
+                                <th class="w-10 px-2 py-3">
+                                    <span class="sr-only">İşlemler</span>
+                                </th>
                                 <th class="px-4 py-3 text-left font-medium text-gray-600">Ürün</th>
                                 <th class="px-4 py-3 text-left font-medium text-gray-600">Kategori</th>
                                 <th v-if="columns.piece" class="px-4 py-3 text-left font-medium text-gray-600">Adet</th>
                                 <th v-if="columns.pallet" class="px-4 py-3 text-left font-medium text-gray-600">Palet</th>
                                 <th class="px-4 py-3 text-left font-medium text-gray-600">Durum</th>
-                                <th class="px-4 py-3 text-right font-medium text-gray-600">İşlemler</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
-                            <tr v-for="product in products.data" :key="product.id">
+                            <template v-for="product in products.data" :key="product.id">
+                            <tr>
+                                <td class="px-2 py-2">
+                                    <RowMenu
+                                        :product-id="product.id"
+                                        :actions="actionsFor(product)"
+                                        @select="selectAction(product, $event)"
+                                    />
+                                </td>
                                 <td class="px-4 py-3">
                                     <div class="font-medium text-gray-900">
                                         {{ product.name }}
@@ -420,15 +464,21 @@ watch(
                                         Uygun
                                     </span>
                                 </td>
-                                <td class="px-4 py-3 text-right">
-                                    <Link
-                                        :href="route('products.edit', product.id)"
-                                        class="text-indigo-600 hover:text-indigo-800"
-                                    >
-                                        Aç
-                                    </Link>
+                            </tr>
+                            <tr v-if="openForm?.id === product.id">
+                                <td :colspan="4 + (columns.piece ? 1 : 0) + (columns.pallet ? 1 : 0)" class="px-4 pb-4">
+                                    <Actions
+                                        :product="product"
+                                        :actions="actionsFor(product)"
+                                        :factories="factories"
+                                        :staff="staff"
+                                        :buttons="false"
+                                        :active="openForm.name"
+                                        @close="openForm = null"
+                                    />
                                 </td>
                             </tr>
+                            </template>
                             <tr v-if="products.data.length === 0">
                                 <td :colspan="4 + (columns.piece ? 1 : 0) + (columns.pallet ? 1 : 0)" class="px-4 py-8 text-center text-gray-500">
                                     Ürün bulunamadı.

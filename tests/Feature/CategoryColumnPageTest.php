@@ -189,4 +189,39 @@ class CategoryColumnPageTest extends TestCase
         $this->assertSame('B4', $product->shelf);
         $this->assertSame('YAZILMAMALI', $product->sku);
     }
+
+    public function test_order_and_warning_counts_stay_on_the_form_and_off_the_list(): void
+    {
+        Permission::findOrCreate('columns.piece');
+        Permission::findOrCreate('factories.view');
+        $user = User::factory()->create();
+        $user->givePermissionTo(['columns.piece', 'factories.view']);
+        $parent = Category::factory()->create();
+        $child = Category::factory()->create(['parent_id' => $parent->id]);
+        $parent->columnDefinitions()->sync(
+            CategoryColumnDefinition::query()
+                ->whereIn('name', ['quantity', 'factory', 'order_quantity', 'warning_count', 'warehouse_warning_count'])
+                ->pluck('id'),
+        );
+        $product = Product::factory()->create([
+            'category_id' => $child->id,
+            'name' => 'Liste disi adet',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('products.index', ['category_id' => $child->id]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('sheet.columns.0.name', 'quantity')
+                ->where('sheet.columns.1.name', 'factory')
+                ->missing('sheet.columns.2'));
+
+        $this->actingAs($user)
+            ->get(route('products.edit', $product))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('fields.2', 'order_quantity')
+                ->where('fields.3', 'warning_count')
+                ->where('fields.4', 'warehouse_warning_count'));
+    }
 }

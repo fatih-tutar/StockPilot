@@ -486,8 +486,12 @@ class ProductController extends Controller
             $visible,
         ));
 
+        $formOnly = ['order_quantity', 'warning_count', 'warehouse_warning_count'];
+
         $columns = CategoryColumns::definitions($category)
-            ->filter(fn ($definition) => in_array($definition->name, $visible, true) && ! in_array($definition->name, $actions, true))
+            ->filter(fn ($definition) => in_array($definition->name, $visible, true)
+                && ! in_array($definition->name, $actions, true)
+                && ! in_array($definition->name, $formOnly, true))
             ->map(fn ($definition) => [
                 'name' => $definition->name,
                 'label' => $definition->label,

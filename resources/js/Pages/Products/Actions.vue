@@ -4,16 +4,28 @@ import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { Link, useForm } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 
 const props = defineProps({
     product: { type: Object, required: true },
     actions: { type: Array, default: () => [] },
     factories: { type: Array, default: () => [] },
     staff: { type: Array, default: () => [] },
+    buttons: { type: Boolean, default: true },
+    active: { type: String, default: null },
 });
 
+const emit = defineEmits(['close']);
+
 const open = ref(null);
+
+watch(
+    () => props.active,
+    (value) => {
+        open.value = value;
+    },
+    { immediate: true },
+);
 
 const quoteForm = useForm({
     client_name: '',
@@ -47,14 +59,15 @@ const send = (form, routeName) => {
         onSuccess: () => {
             form.reset();
             open.value = null;
+            emit('close');
         },
     });
 };
 </script>
 
 <template>
-    <div class="space-y-3">
-        <div class="flex flex-wrap gap-2">
+    <div v-if="buttons || open" class="space-y-3">
+        <div v-if="buttons" class="flex flex-wrap gap-2">
             <button
                 v-if="actions.includes('offer_button')"
                 type="button"
