@@ -1,10 +1,14 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import Checkbox from '@/Components/Checkbox.vue';
+import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
+import Modal from '@/Components/Modal.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import Actions from '@/Pages/Products/Actions.vue';
-import { Head, Link, router, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 
 const props = defineProps({
@@ -24,6 +28,43 @@ const flashError = computed(() => page.props.flash?.error);
 
 const search = ref(props.filters.search || '');
 const categoryId = ref(props.filters.category_id || '');
+const showForm = ref(false);
+const form = useForm({
+    category_id: '',
+    sku: '',
+    name: '',
+    description: '',
+    quantity_piece: 0,
+    quantity_pallet: 0,
+    low_stock_threshold: '',
+    is_active: true,
+});
+
+const openCreate = () => {
+    form.reset();
+    form.clearErrors();
+    showForm.value = true;
+};
+
+const closeForm = () => {
+    showForm.value = false;
+};
+
+const submit = () => {
+    form.transform((data) => ({
+        ...data,
+        category_id: Number(data.category_id),
+        quantity_piece: Number(data.quantity_piece || 0),
+        quantity_pallet: Number(data.quantity_pallet || 0),
+        low_stock_threshold:
+            data.low_stock_threshold === '' || data.low_stock_threshold === null
+                ? null
+                : Number(data.low_stock_threshold),
+    })).post(route('products.store'), {
+        preserveScroll: true,
+        onSuccess: () => closeForm(),
+    });
+};
 
 watch(
     [search, categoryId],
@@ -53,13 +94,9 @@ watch(
                 <h2 class="text-xl font-semibold leading-tight text-gray-800">
                     Ürünler ve stok
                 </h2>
-                <Link
-                    v-if="canManage"
-                    :href="route('products.create')"
-                    class="inline-flex items-center rounded-md border border-transparent bg-gray-800 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white transition hover:bg-gray-700"
-                >
+                <PrimaryButton v-if="canManage" type="button" @click="openCreate">
                     Yeni ürün
-                </Link>
+                </PrimaryButton>
             </div>
         </template>
 
@@ -255,5 +292,110 @@ watch(
                     </div>
             </div>
         </div>
+
+        <Modal :show="showForm" max-width="2xl" @close="closeForm">
+            <form class="max-h-[80vh] overflow-y-auto p-6" @submit.prevent="submit">
+                <h2 class="text-lg font-medium text-gray-900">
+                    Yeni ürün
+                </h2>
+
+                <div class="mt-6 grid gap-4 md:grid-cols-2">
+                    <div>
+                        <InputLabel for="product_name" value="Ad" />
+                        <TextInput
+                            id="product_name"
+                            v-model="form.name"
+                            class="mt-1 block w-full"
+                            required
+                        />
+                        <InputError class="mt-2" :message="form.errors.name" />
+                    </div>
+                    <div>
+                        <InputLabel for="product_sku" value="SKU" />
+                        <TextInput
+                            id="product_sku"
+                            v-model="form.sku"
+                            class="mt-1 block w-full"
+                        />
+                        <InputError class="mt-2" :message="form.errors.sku" />
+                    </div>
+                    <div>
+                        <InputLabel for="product_category_id" value="Kategori" />
+                        <select
+                            id="product_category_id"
+                            v-model="form.category_id"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            required
+                        >
+                            <option value="" disabled>Kategori seçin</option>
+                            <option
+                                v-for="category in categories"
+                                :key="category.id"
+                                :value="category.id"
+                            >
+                                {{ category.name }}
+                            </option>
+                        </select>
+                        <InputError class="mt-2" :message="form.errors.category_id" />
+                    </div>
+                    <div>
+                        <InputLabel for="product_low_stock_threshold" value="Düşük stok eşiği (adet)" />
+                        <TextInput
+                            id="product_low_stock_threshold"
+                            v-model="form.low_stock_threshold"
+                            type="number"
+                            min="0"
+                            class="mt-1 block w-full"
+                        />
+                        <InputError class="mt-2" :message="form.errors.low_stock_threshold" />
+                    </div>
+                    <div v-if="columns.piece">
+                        <InputLabel for="product_quantity_piece" value="Açılış adet" />
+                        <TextInput
+                            id="product_quantity_piece"
+                            v-model="form.quantity_piece"
+                            type="number"
+                            min="0"
+                            class="mt-1 block w-full"
+                        />
+                        <InputError class="mt-2" :message="form.errors.quantity_piece" />
+                    </div>
+                    <div v-if="columns.pallet">
+                        <InputLabel for="product_quantity_pallet" value="Açılış palet" />
+                        <TextInput
+                            id="product_quantity_pallet"
+                            v-model="form.quantity_pallet"
+                            type="number"
+                            min="0"
+                            class="mt-1 block w-full"
+                        />
+                        <InputError class="mt-2" :message="form.errors.quantity_pallet" />
+                    </div>
+                    <div class="md:col-span-2">
+                        <InputLabel for="product_description" value="Açıklama" />
+                        <textarea
+                            id="product_description"
+                            v-model="form.description"
+                            rows="3"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        />
+                        <InputError class="mt-2" :message="form.errors.description" />
+                    </div>
+                    <div class="flex items-center gap-2 md:col-span-2">
+                        <Checkbox id="product_is_active" v-model:checked="form.is_active" />
+                        <InputLabel for="product_is_active" value="Aktif" />
+                    </div>
+                </div>
+
+                <div class="mt-6 flex justify-end gap-3">
+                    <SecondaryButton type="button" @click="closeForm">
+                        İptal
+                    </SecondaryButton>
+                    <PrimaryButton :disabled="form.processing">
+                        Ürün oluştur
+                    </PrimaryButton>
+                </div>
+            </form>
+        </Modal>
     </AuthenticatedLayout>
 </template>

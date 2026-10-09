@@ -117,7 +117,7 @@ class ProductController extends Controller
         $product = Product::query()->create($data);
 
         return redirect()
-            ->route('products.edit', $product)
+            ->back()
             ->with('success', 'Ürün oluşturuldu.');
     }
 
