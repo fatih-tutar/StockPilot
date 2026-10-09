@@ -338,10 +338,6 @@ watch(
                     </div>
                 </div>
 
-                <p v-if="!sheet" class="text-sm text-gray-500">
-                    Bir alt kategori seçildiğinde liste, o kategorinin sütunlarına göre açılır.
-                </p>
-
                 <div v-if="sheet" class="overflow-visible bg-white shadow-sm sm:rounded-lg">
                     <table class="min-w-full divide-y divide-gray-200 text-sm">
                         <thead class="bg-gray-50">
