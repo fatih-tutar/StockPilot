@@ -3,12 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Stock\AdjustProductStock;
+use App\Actions\Stock\SetProductQuantities;
 use App\Enums\FactoryOrderStatus;
 use App\Enums\QuoteStatus;
 use App\Enums\ShipmentStatus;
 use App\Enums\ShipmentType;
 use App\Enums\StockActivityPlace;
 use App\Http\Requests\Catalog\AdjustStockRequest;
+use App\Http\Requests\Catalog\SetProductStockRequest;
 use App\Http\Requests\Catalog\StoreProductRequest;
 use App\Http\Requests\Catalog\UpdateProductRequest;
 use App\Models\Category;
@@ -69,6 +71,7 @@ class ProductController extends Controller
                 'name' => $product->name,
                 'quantity_piece' => $columns['piece'] ? $product->quantity_piece : null,
                 'quantity_pallet' => $columns['pallet'] ? $product->quantity_pallet : null,
+                'warehouse_quantity' => $columns['alkop'] ? $product->warehouse_quantity : null,
                 'low_stock_threshold' => $product->low_stock_threshold,
                 'is_low_stock' => $product->isLowStock(),
                 'is_active' => $product->is_active,
@@ -225,6 +228,13 @@ class ProductController extends Controller
         return redirect()
             ->route('products.edit', $product)
             ->with('success', 'Stok güncellendi.');
+    }
+
+    public function setStock(SetProductStockRequest $request, Product $product, SetProductQuantities $quantities): RedirectResponse
+    {
+        $quantities->handle($product, $request->validated(), $request->user());
+
+        return back()->with('success', 'Stok güncellendi.');
     }
 
     public function quote(Request $request, Product $product): RedirectResponse

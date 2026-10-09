@@ -10,6 +10,7 @@ import TextInput from '@/Components/TextInput.vue';
 import Actions from '@/Pages/Products/Actions.vue';
 import Editor from '@/Pages/Products/Editor.vue';
 import RowMenu from '@/Pages/Products/RowMenu.vue';
+import StockForm from '@/Pages/Products/StockForm.vue';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
@@ -410,6 +411,7 @@ watch(
                                     <td class="px-2 py-2">
                                         <RowMenu
                                             :actions="actionsFor(product)"
+                                            :can-stock="canManage"
                                             @select="selectAction(product, $event)"
                                         />
                                     </td>
@@ -453,6 +455,7 @@ watch(
                                 <td class="px-2 py-2">
                                     <RowMenu
                                         :actions="actionsFor(product)"
+                                        :can-stock="canManage"
                                         @select="selectAction(product, $event)"
                                     />
                                 </td>
@@ -537,6 +540,12 @@ watch(
                 :buttons="false"
                 :modal="true"
                 :active="openForm.name"
+                @close="closeAction"
+            />
+            <StockForm
+                v-else-if="openForm.name === 'stock' && openProduct"
+                :key="'stock-' + openProduct.id"
+                :product="openProduct"
                 @close="closeAction"
             />
             <Editor

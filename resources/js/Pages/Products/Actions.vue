@@ -254,7 +254,7 @@ const send = (form, routeName) => {
             <div :class="modal ? 'mt-6 grid gap-4 md:grid-cols-2' : 'contents'">
             <div>
                 <InputLabel value="Müşteri" />
-                <div class="mt-1 flex flex-col gap-1">
+                <div class="relative mt-1" :class="clientOpen ? 'z-20' : ''">
                     <TextInput
                         v-model="quoteForm.client_name"
                         class="block w-full"
@@ -266,7 +266,7 @@ const send = (form, routeName) => {
                     />
                     <ul
                         v-if="clientOpen"
-                        class="max-h-48 overflow-y-auto rounded-md border border-gray-200 bg-white"
+                        class="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg"
                     >
                         <li v-if="clientOptions.length === 0" class="px-3 py-2 text-sm text-gray-500">
                             Eşleşen kayıt bulunamadı.
@@ -366,7 +366,7 @@ const send = (form, routeName) => {
             <div :class="modal ? 'mt-6 grid gap-4 md:grid-cols-2' : 'contents'">
             <div>
                 <InputLabel value="Firma" />
-                <div class="mt-1 flex flex-col gap-1">
+                <div class="relative mt-1" :class="shipClientOpen ? 'z-20' : ''">
                     <TextInput
                         v-model="shipForm.client_name"
                         class="block w-full"
@@ -378,7 +378,7 @@ const send = (form, routeName) => {
                     />
                     <ul
                         v-if="shipClientOpen"
-                        class="max-h-48 overflow-y-auto rounded-md border border-gray-200 bg-white"
+                        class="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg"
                     >
                         <li v-if="shipClientOptions.length === 0" class="px-3 py-2 text-sm text-gray-500">
                             Eşleşen kayıt bulunamadı.

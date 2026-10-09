@@ -55,6 +55,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('stock-activities', [StockActivityController::class, 'index'])->name('stock-activities.index');
     Route::post('products/{product}/adjust-stock', [ProductController::class, 'adjust'])
         ->name('products.adjust-stock');
+    Route::post('products/{product}/set-stock', [ProductController::class, 'setStock'])
+        ->name('products.set-stock');
     Route::post('products/{product}/quote', [ProductController::class, 'quote'])->name('products.quote');
     Route::post('products/{product}/order', [ProductController::class, 'order'])->name('products.order');
     Route::post('products/{product}/ship', [ProductController::class, 'ship'])->name('products.ship');

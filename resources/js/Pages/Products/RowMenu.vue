@@ -3,6 +3,7 @@ import { onMounted, onUnmounted, ref } from 'vue';
 
 defineProps({
     actions: { type: Array, default: () => [] },
+    canStock: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['select']);
@@ -12,6 +13,7 @@ const button = ref(null);
 const position = ref({ top: 0, left: 0 });
 
 const menuItems = [
+    { name: 'stock', label: 'Stok güncelle', stock: true },
     { name: 'offer', label: 'Teklif', action: 'offer_button' },
     { name: 'order', label: 'Sipariş', action: 'order_button' },
     { name: 'ship', label: 'Sevkiyat', action: 'shipment_button' },
@@ -96,12 +98,12 @@ onUnmounted(() => {
         <Teleport to="body">
             <div
                 v-if="open"
-                class="fixed z-50 w-44 rounded-md bg-white py-1 shadow-lg ring-1 ring-black/5"
+                class="fixed z-50 w-48 rounded-md bg-white py-1 shadow-lg ring-1 ring-black/5"
                 :style="{ top: `${position.top}px`, left: `${position.left}px` }"
                 @click.stop
             >
                 <button
-                    v-for="item in menuItems.filter((entry) => !entry.action || actions.includes(entry.action))"
+                    v-for="item in menuItems.filter((entry) => (entry.stock ? canStock : !entry.action || actions.includes(entry.action)))"
                     :key="item.name"
                     type="button"
                     class="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
