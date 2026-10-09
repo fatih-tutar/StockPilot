@@ -84,7 +84,7 @@ class ProductController extends Controller
                 'search' => $search,
                 'category_id' => $categoryId,
             ],
-            'categories' => Category::query()->orderBy('name')->get(['id', 'name', 'parent_id']),
+            'categories' => $this->categoryChoices($request->user()),
             'sheet' => $category === null ? null : $sheet,
             'factories' => Factory::query()->orderBy('name')->get(['id', 'name']),
             'staff' => User::query()->orderBy('name')->get(['id', 'name']),
@@ -108,6 +108,8 @@ class ProductController extends Controller
     public function store(StoreProductRequest $request): RedirectResponse
     {
         $data = $request->validated();
+        $moldNumber = $data['mold_number'] ?? null;
+        unset($data['mold_number']);
         $category = Category::query()->with('parent')->find($data['category_id']);
         $data = $this->writable($data, $category, $request->user());
         $data['quantity_piece'] = $data['quantity_piece'] ?? 0;
@@ -115,6 +117,16 @@ class ProductController extends Controller
         $data['is_active'] = $data['is_active'] ?? true;
 
         $product = Product::query()->create($data);
+
+        if ($moldNumber !== null && $product->factory_id !== null) {
+            MoldNumber::query()->updateOrCreate(
+                [
+                    'product_id' => $product->id,
+                    'factory_id' => $product->factory_id,
+                ],
+                ['number' => $moldNumber],
+            );
+        }
 
         return redirect()
             ->back()
@@ -414,10 +426,53 @@ class ProductController extends Controller
             'name',
             'description',
             'is_active',
+            'sku',
             ...$allowed,
         ]));
 
+        foreach ([
+            'purchase_price',
+            'sale_price',
+            'default_order_quantity',
+            'warehouse_quantity',
+            'quantity_piece',
+            'quantity_pallet',
+        ] as $column) {
+            if (array_key_exists($column, $kept) && $kept[$column] === null) {
+                $kept[$column] = 0;
+            }
+        }
+
         return $kept;
+    }
+
+    /**
+     * @return list<array{id: int, name: string, parent_id: int|null, fields: list<string>}>
+     */
+    private function categoryChoices(User $user): array
+    {
+        $categories = Category::query()
+            ->with('columnDefinitions:id,name')
+            ->orderBy('name')
+            ->get(['id', 'name', 'parent_id']);
+        $byId = $categories->keyBy('id');
+
+        return $categories->map(function (Category $category) use ($byId, $user): array {
+            $owner = $category->parent_id === null
+                ? $category
+                : ($byId->get($category->parent_id) ?? $category);
+
+            return [
+                'id' => $category->id,
+                'name' => $category->name,
+                'parent_id' => $category->parent_id,
+                'fields' => $owner->columnDefinitions
+                    ->pluck('name')
+                    ->filter(fn (string $name): bool => CategoryColumns::allowed($name, $user))
+                    ->values()
+                    ->all(),
+            ];
+        })->all();
     }
 
     /**

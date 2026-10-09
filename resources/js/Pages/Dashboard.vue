@@ -142,7 +142,7 @@ const movementTypeLabel = (type) => {
                                         {{ product.name }}
                                     </Link>
                                     <p class="text-xs text-gray-500">
-                                        {{ product.sku || 'SKU yok' }}
+                                        {{ product.sku || 'Kod yok' }}
                                         · eşik {{ product.low_stock_threshold }}
                                     </p>
                                 </div>

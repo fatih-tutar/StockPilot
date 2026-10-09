@@ -192,8 +192,8 @@ const destroyProduct = () => {
                             />
                             <InputError class="mt-2" :message="form.errors.name" />
                         </div>
-                        <div v-if="!isEdit || show('product_code')">
-                            <InputLabel for="sku" value="SKU" />
+                        <div>
+                            <InputLabel for="sku" value="Kod" />
                             <TextInput
                                 id="sku"
                                 v-model="form.sku"

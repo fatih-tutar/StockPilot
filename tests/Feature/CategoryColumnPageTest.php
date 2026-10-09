@@ -187,6 +187,6 @@ class CategoryColumnPageTest extends TestCase
 
         $product->refresh();
         $this->assertSame('B4', $product->shelf);
-        $this->assertNotSame('YAZILMAMALI', $product->sku);
+        $this->assertSame('YAZILMAMALI', $product->sku);
     }
 }

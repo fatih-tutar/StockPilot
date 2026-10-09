@@ -39,6 +39,7 @@ class StoreProductRequest extends FormRequest
             'warehouse_low_stock_threshold' => ['nullable', 'integer', 'min:0'],
             'low_stock_threshold' => ['nullable', 'integer', 'min:0'],
             'is_active' => ['sometimes', 'boolean'],
+            'mold_number' => ['nullable', 'string', 'max:32'],
         ];
     }
 

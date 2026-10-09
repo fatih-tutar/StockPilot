@@ -35,9 +35,21 @@ const form = useForm({
     sku: '',
     name: '',
     description: '',
-    quantity_piece: 0,
-    quantity_pallet: 0,
+    quantity_piece: '',
+    quantity_pallet: '',
+    warehouse_quantity: '',
+    shelf: '',
+    unit_weight_kg: '',
+    length_measure: '',
+    purchase_price: '',
+    sale_price: '',
+    factory_id: '',
+    customer_name: '',
+    due_on: '',
+    default_order_quantity: '',
+    warehouse_low_stock_threshold: '',
     low_stock_threshold: '',
+    mold_number: '',
     is_active: true,
 });
 
@@ -73,6 +85,26 @@ const subcategories = computed(() => {
         (category) => category.parent_id !== null && rootOf(category).id === rootId,
     );
 });
+
+const selectedCategory = computed(() =>
+    props.categories.find((category) => String(category.id) === String(form.category_id)),
+);
+
+const selectedFields = computed(() => selectedCategory.value?.fields ?? []);
+
+const show = (name) => selectedFields.value.includes(name);
+
+const selectedFactoryName = computed(
+    () => props.factories.find((factory) => String(factory.id) === String(form.factory_id))?.name,
+);
+
+const emptyToNull = (value) => (value === '' || value === null || value === undefined ? null : value);
+
+const emptyToNumber = (value) => {
+    const normalized = emptyToNull(value);
+
+    return normalized === null ? null : Number(normalized);
+};
 
 const openCreate = () => {
     parentCategoryId.value = '';
@@ -110,12 +142,23 @@ const submit = () => {
     form.transform((data) => ({
         ...data,
         category_id: Number(data.category_id),
-        quantity_piece: Number(data.quantity_piece || 0),
-        quantity_pallet: Number(data.quantity_pallet || 0),
-        low_stock_threshold:
-            data.low_stock_threshold === '' || data.low_stock_threshold === null
-                ? null
-                : Number(data.low_stock_threshold),
+        sku: emptyToNull(data.sku),
+        quantity_piece: emptyToNumber(data.quantity_piece) ?? 0,
+        quantity_pallet: emptyToNumber(data.quantity_pallet) ?? 0,
+        warehouse_quantity: emptyToNumber(data.warehouse_quantity),
+        unit_weight_kg: emptyToNumber(data.unit_weight_kg),
+        purchase_price: emptyToNumber(data.purchase_price),
+        sale_price: emptyToNumber(data.sale_price),
+        factory_id: emptyToNumber(data.factory_id),
+        default_order_quantity: emptyToNumber(data.default_order_quantity),
+        warehouse_low_stock_threshold: emptyToNumber(data.warehouse_low_stock_threshold),
+        low_stock_threshold: emptyToNumber(data.low_stock_threshold),
+        shelf: emptyToNull(data.shelf),
+        length_measure: emptyToNull(data.length_measure),
+        customer_name: emptyToNull(data.customer_name),
+        due_on: emptyToNull(data.due_on),
+        mold_number: emptyToNull(data.mold_number),
+        description: emptyToNull(data.description),
     })).post(route('products.store'), {
         preserveScroll: true,
         onSuccess: () => closeForm(),
@@ -178,7 +221,7 @@ watch(
                             id="search"
                             v-model="search"
                             class="mt-1 block w-full"
-                            placeholder="Ad veya SKU"
+                            placeholder="Ad veya kod"
                         />
                     </div>
                     <div>
@@ -278,7 +321,7 @@ watch(
                                         {{ product.name }}
                                     </div>
                                     <div class="text-xs text-gray-500">
-                                        {{ product.sku || 'SKU yok' }}
+                                        {{ product.sku || 'Kod yok' }}
                                     </div>
                                 </td>
                                 <td class="px-4 py-3 text-gray-700">
@@ -367,7 +410,7 @@ watch(
                         <InputError class="mt-2" :message="form.errors.name" />
                     </div>
                     <div>
-                        <InputLabel for="product_sku" value="SKU" />
+                        <InputLabel for="product_sku" value="Kod" />
                         <TextInput
                             id="product_sku"
                             v-model="form.sku"
@@ -446,6 +489,117 @@ watch(
                             class="mt-1 block w-full"
                         />
                         <InputError class="mt-2" :message="form.errors.quantity_pallet" />
+                    </div>
+                    <div v-if="show('shelf')">
+                        <InputLabel for="product_shelf" value="Raf" />
+                        <TextInput id="product_shelf" v-model="form.shelf" class="mt-1 block w-full" />
+                        <InputError class="mt-2" :message="form.errors.shelf" />
+                    </div>
+                    <div v-if="show('unit_weight')">
+                        <InputLabel for="product_unit_weight_kg" value="Birim kg" />
+                        <TextInput
+                            id="product_unit_weight_kg"
+                            v-model="form.unit_weight_kg"
+                            type="number"
+                            min="0"
+                            step="0.001"
+                            class="mt-1 block w-full"
+                        />
+                        <InputError class="mt-2" :message="form.errors.unit_weight_kg" />
+                    </div>
+                    <div v-if="show('size_measure')">
+                        <InputLabel for="product_length_measure" value="Boy ölçüsü" />
+                        <TextInput id="product_length_measure" v-model="form.length_measure" class="mt-1 block w-full" />
+                        <InputError class="mt-2" :message="form.errors.length_measure" />
+                    </div>
+                    <div v-if="show('purchase_price')">
+                        <InputLabel for="product_purchase_price" value="Alış" />
+                        <TextInput
+                            id="product_purchase_price"
+                            v-model="form.purchase_price"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            class="mt-1 block w-full"
+                        />
+                        <InputError class="mt-2" :message="form.errors.purchase_price" />
+                    </div>
+                    <div v-if="show('sales_price') || show('manual_sales')">
+                        <InputLabel for="product_sale_price" value="Satış" />
+                        <TextInput
+                            id="product_sale_price"
+                            v-model="form.sale_price"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            class="mt-1 block w-full"
+                        />
+                        <InputError class="mt-2" :message="form.errors.sale_price" />
+                    </div>
+                    <div v-if="show('warehouse_quantity')">
+                        <InputLabel for="product_warehouse_quantity" value="Depo adet" />
+                        <TextInput
+                            id="product_warehouse_quantity"
+                            v-model="form.warehouse_quantity"
+                            type="number"
+                            min="0"
+                            class="mt-1 block w-full"
+                        />
+                        <InputError class="mt-2" :message="form.errors.warehouse_quantity" />
+                    </div>
+                    <div v-if="show('factory')">
+                        <InputLabel for="product_factory_id" value="Fabrika" />
+                        <select
+                            id="product_factory_id"
+                            v-model="form.factory_id"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        >
+                            <option value="">Fabrika yok</option>
+                            <option v-for="factory in factories" :key="factory.id" :value="factory.id">
+                                {{ factory.name }}
+                            </option>
+                        </select>
+                        <InputError class="mt-2" :message="form.errors.factory_id" />
+                    </div>
+                    <div v-if="show('customer_name')">
+                        <InputLabel for="product_customer_name" value="Müşteri ismi" />
+                        <TextInput id="product_customer_name" v-model="form.customer_name" class="mt-1 block w-full" />
+                        <InputError class="mt-2" :message="form.errors.customer_name" />
+                    </div>
+                    <div v-if="show('due_date')">
+                        <InputLabel for="product_due_on" value="Termin" />
+                        <TextInput id="product_due_on" v-model="form.due_on" type="date" class="mt-1 block w-full" />
+                        <InputError class="mt-2" :message="form.errors.due_on" />
+                    </div>
+                    <div v-if="show('order_quantity')">
+                        <InputLabel for="product_default_order_quantity" value="Sipariş adedi" />
+                        <TextInput
+                            id="product_default_order_quantity"
+                            v-model="form.default_order_quantity"
+                            type="number"
+                            min="0"
+                            class="mt-1 block w-full"
+                        />
+                        <InputError class="mt-2" :message="form.errors.default_order_quantity" />
+                    </div>
+                    <div v-if="show('warehouse_warning_count')">
+                        <InputLabel for="product_warehouse_low_stock_threshold" value="Depo uyarı adedi" />
+                        <TextInput
+                            id="product_warehouse_low_stock_threshold"
+                            v-model="form.warehouse_low_stock_threshold"
+                            type="number"
+                            min="0"
+                            class="mt-1 block w-full"
+                        />
+                        <InputError class="mt-2" :message="form.errors.warehouse_low_stock_threshold" />
+                    </div>
+                    <div v-if="show('factory') && form.factory_id" class="md:col-span-2">
+                        <InputLabel
+                            for="product_mold_number"
+                            :value="selectedFactoryName ? `Kalıp numarası (${selectedFactoryName})` : 'Kalıp numarası'"
+                        />
+                        <TextInput id="product_mold_number" v-model="form.mold_number" class="mt-1 block w-full" />
+                        <InputError class="mt-2" :message="form.errors.mold_number" />
                     </div>
                     <div class="md:col-span-2">
                         <InputLabel for="product_description" value="Açıklama" />
