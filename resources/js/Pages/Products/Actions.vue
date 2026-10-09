@@ -2,6 +2,7 @@
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { Link, useForm } from '@inertiajs/vue3';
 import { ref, watch } from 'vue';
@@ -13,6 +14,7 @@ const props = defineProps({
     staff: { type: Array, default: () => [] },
     buttons: { type: Boolean, default: true },
     active: { type: String, default: null },
+    modal: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['close']);
@@ -53,6 +55,23 @@ const toggle = (name) => {
     open.value = open.value === name ? null : name;
 };
 
+const dismiss = () => {
+    open.value = null;
+    emit('close');
+};
+
+const formClass = (name) => {
+    if (props.modal) {
+        return 'max-h-[80vh] overflow-y-auto p-6';
+    }
+
+    return {
+        offer: 'grid gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 md:grid-cols-4',
+        order: 'grid gap-3 rounded-md border border-sky-200 bg-sky-50 p-3 md:grid-cols-3',
+        ship: 'grid gap-3 rounded-md border border-gray-200 bg-gray-50 p-3 md:grid-cols-4',
+    }[name];
+};
+
 const send = (form, routeName) => {
     form.post(route(routeName, props.product.id), {
         preserveScroll: true,
@@ -66,7 +85,7 @@ const send = (form, routeName) => {
 </script>
 
 <template>
-    <div v-if="buttons || open" class="space-y-3">
+    <div v-if="buttons || open" :class="modal ? '' : 'space-y-3'">
         <div v-if="buttons" class="flex flex-wrap gap-2">
             <button
                 v-if="actions.includes('offer_button')"
@@ -103,9 +122,14 @@ const send = (form, routeName) => {
 
         <form
             v-if="open === 'offer'"
-            class="grid gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 md:grid-cols-4"
+            :class="formClass('offer')"
             @submit.prevent="send(quoteForm, 'products.quote')"
         >
+            <div v-if="modal">
+                <h2 class="text-lg font-medium text-gray-900">Teklif</h2>
+                <p class="mt-1 text-sm text-gray-500">{{ product.name }}</p>
+            </div>
+            <div :class="modal ? 'mt-6 grid gap-4 md:grid-cols-2' : 'contents'">
             <div>
                 <InputLabel value="Müşteri" />
                 <TextInput v-model="quoteForm.client_name" class="mt-1 block w-full" />
@@ -121,19 +145,26 @@ const send = (form, routeName) => {
                 <TextInput v-model="quoteForm.unit_price" type="number" min="0" step="0.01" class="mt-1 block w-full" />
                 <InputError class="mt-1" :message="quoteForm.errors.unit_price" />
             </div>
-            <div class="flex items-end">
+            </div>
+            <div :class="modal ? 'mt-6 flex justify-end gap-3' : 'flex items-end'">
+                <SecondaryButton v-if="modal" type="button" @click="dismiss">İptal</SecondaryButton>
                 <PrimaryButton :disabled="quoteForm.processing">Teklife ekle</PrimaryButton>
             </div>
         </form>
 
         <form
             v-if="open === 'order'"
-            class="grid gap-3 rounded-md border border-sky-200 bg-sky-50 p-3 md:grid-cols-3"
+            :class="formClass('order')"
             @submit.prevent="send(orderForm, 'products.order')"
         >
+            <div v-if="modal">
+                <h2 class="text-lg font-medium text-gray-900">Sipariş</h2>
+                <p class="mt-1 text-sm text-gray-500">{{ product.name }}</p>
+            </div>
+            <div :class="modal ? 'mt-6 grid gap-4 md:grid-cols-2' : 'contents'">
             <div>
                 <InputLabel value="Fabrika" />
-                <select v-model="orderForm.factory_id" class="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm">
+                <select v-model="orderForm.factory_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                     <option value="">Fabrika seçin</option>
                     <option v-for="factory in factories" :key="factory.id" :value="factory.id">{{ factory.name }}</option>
                 </select>
@@ -141,7 +172,7 @@ const send = (form, routeName) => {
             </div>
             <div>
                 <InputLabel value="Hazırlayan" />
-                <select v-model="orderForm.prepared_by_user_id" class="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm">
+                <select v-model="orderForm.prepared_by_user_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                     <option value="">Seçin</option>
                     <option v-for="person in staff" :key="person.id" :value="person.id">{{ person.name }}</option>
                 </select>
@@ -167,16 +198,23 @@ const send = (form, routeName) => {
                 <InputLabel value="Palet" />
                 <TextInput v-model="orderForm.pallet_count" type="number" min="0" class="mt-1 block w-full" />
             </div>
-            <div class="flex items-end">
+            </div>
+            <div :class="modal ? 'mt-6 flex justify-end gap-3' : 'flex items-end'">
+                <SecondaryButton v-if="modal" type="button" @click="dismiss">İptal</SecondaryButton>
                 <PrimaryButton :disabled="orderForm.processing">Siparişe ekle</PrimaryButton>
             </div>
         </form>
 
         <form
             v-if="open === 'ship'"
-            class="grid gap-3 rounded-md border border-gray-200 bg-gray-50 p-3 md:grid-cols-4"
+            :class="formClass('ship')"
             @submit.prevent="send(shipForm, 'products.ship')"
         >
+            <div v-if="modal">
+                <h2 class="text-lg font-medium text-gray-900">Sevkiyat</h2>
+                <p class="mt-1 text-sm text-gray-500">{{ product.name }}</p>
+            </div>
+            <div :class="modal ? 'mt-6 grid gap-4 md:grid-cols-2' : 'contents'">
             <div>
                 <InputLabel value="Müşteri" />
                 <TextInput v-model="shipForm.client_name" class="mt-1 block w-full" />
@@ -191,7 +229,9 @@ const send = (form, routeName) => {
                 <InputLabel value="Palet" />
                 <TextInput v-model="shipForm.quantity_pallet" type="number" min="0" class="mt-1 block w-full" />
             </div>
-            <div class="flex items-end">
+            </div>
+            <div :class="modal ? 'mt-6 flex justify-end gap-3' : 'flex items-end'">
+                <SecondaryButton v-if="modal" type="button" @click="dismiss">İptal</SecondaryButton>
                 <PrimaryButton :disabled="shipForm.processing">Sevkiyata ekle</PrimaryButton>
             </div>
         </form>

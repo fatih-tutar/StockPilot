@@ -118,6 +118,14 @@ const selectSubcategory = (id) => {
 const actionNames = ['offer_button', 'order_button', 'shipment_button', 'edit_button'];
 const openForm = ref(null);
 
+const openProduct = computed(() => {
+    if (!openForm.value) {
+        return null;
+    }
+
+    return props.products.data.find((item) => item.id === openForm.value.id) ?? null;
+});
+
 const actionsFor = (product) => {
     if (props.sheet) {
         return props.sheet.actions;
@@ -376,19 +384,6 @@ watch(
                                         {{ product.cells?.[column.name] ?? '—' }}
                                     </td>
                                 </tr>
-                                <tr v-if="openForm?.id === product.id">
-                                    <td :colspan="sheet.columns.length + 2" class="px-4 pb-4">
-                                        <Actions
-                                            :product="product"
-                                            :actions="actionsFor(product)"
-                                            :factories="factories"
-                                            :staff="staff"
-                                            :buttons="false"
-                                            :active="openForm.name"
-                                            @close="openForm = null"
-                                        />
-                                    </td>
-                                </tr>
                             </template>
                             <tr v-if="products.data.length === 0">
                                 <td :colspan="sheet.columns.length + 2" class="px-4 py-8 text-center text-gray-500">
@@ -461,19 +456,6 @@ watch(
                                     </span>
                                 </td>
                             </tr>
-                            <tr v-if="openForm?.id === product.id">
-                                <td :colspan="4 + (columns.piece ? 1 : 0) + (columns.pallet ? 1 : 0)" class="px-4 pb-4">
-                                    <Actions
-                                        :product="product"
-                                        :actions="actionsFor(product)"
-                                        :factories="factories"
-                                        :staff="staff"
-                                        :buttons="false"
-                                        :active="openForm.name"
-                                        @close="openForm = null"
-                                    />
-                                </td>
-                            </tr>
                             </template>
                             <tr v-if="products.data.length === 0">
                                 <td :colspan="4 + (columns.piece ? 1 : 0) + (columns.pallet ? 1 : 0)" class="px-4 py-8 text-center text-gray-500">
@@ -504,6 +486,21 @@ watch(
                     </div>
             </div>
         </div>
+
+        <Modal :show="openProduct !== null" max-width="2xl" @close="openForm = null">
+            <Actions
+                v-if="openProduct"
+                :key="openProduct.id"
+                :product="openProduct"
+                :actions="actionsFor(openProduct)"
+                :factories="factories"
+                :staff="staff"
+                :buttons="false"
+                :modal="true"
+                :active="openForm.name"
+                @close="openForm = null"
+            />
+        </Modal>
 
         <Modal :show="showForm" max-width="2xl" @close="closeForm">
             <form class="max-h-[80vh] overflow-y-auto p-6" @submit.prevent="submit">
