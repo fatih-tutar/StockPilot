@@ -18,6 +18,7 @@ class ShipmentItem extends Model
         'description',
         'quantity_piece',
         'quantity_pallet',
+        'unit_price',
         'sort_order',
     ];
 
@@ -26,6 +27,7 @@ class ShipmentItem extends Model
         return [
             'quantity_piece' => 'integer',
             'quantity_pallet' => 'integer',
+            'unit_price' => 'decimal:2',
             'sort_order' => 'integer',
         ];
     }

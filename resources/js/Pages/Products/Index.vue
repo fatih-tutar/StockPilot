@@ -8,8 +8,10 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import Actions from '@/Pages/Products/Actions.vue';
+import Editor from '@/Pages/Products/Editor.vue';
 import RowMenu from '@/Pages/Products/RowMenu.vue';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
+import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
 
 const props = defineProps({
@@ -18,6 +20,7 @@ const props = defineProps({
     categories: { type: Array, required: true },
     sheet: { type: Object, default: null },
     factories: { type: Array, default: () => [] },
+    vehicles: { type: Array, default: () => [] },
     staff: { type: Array, default: () => [] },
     canManage: { type: Boolean, required: true },
 });
@@ -117,6 +120,10 @@ const selectSubcategory = (id) => {
 
 const actionNames = ['offer_button', 'order_button', 'shipment_button', 'edit_button'];
 const openForm = ref(null);
+const editor = ref(null);
+const activities = ref(null);
+const detailLoading = ref(false);
+let detailRequest = 0;
 
 const openProduct = computed(() => {
     if (!openForm.value) {
@@ -138,14 +145,47 @@ const actionsFor = (product) => {
     return (category?.fields ?? []).filter((name) => actionNames.includes(name));
 };
 
-const selectAction = (product, name) => {
+const closeAction = () => {
+    openForm.value = null;
+    editor.value = null;
+    activities.value = null;
+};
+
+const selectAction = async (product, name) => {
     if (openForm.value?.id === product.id && openForm.value?.name === name) {
-        openForm.value = null;
+        closeAction();
 
         return;
     }
 
     openForm.value = { id: product.id, name };
+    editor.value = null;
+    activities.value = null;
+
+    if (name !== 'edit' && name !== 'activity') {
+        return;
+    }
+
+    const requestId = ++detailRequest;
+    detailLoading.value = true;
+
+    try {
+        const { data } = await axios.get(route(name === 'edit' ? 'products.editor' : 'products.activities', product.id));
+
+        if (requestId !== detailRequest || openForm.value?.id !== product.id || openForm.value?.name !== name) {
+            return;
+        }
+
+        if (name === 'edit') {
+            editor.value = data;
+        } else {
+            activities.value = data;
+        }
+    } finally {
+        if (requestId === detailRequest) {
+            detailLoading.value = false;
+        }
+    }
 };
 
 onMounted(() => {
@@ -369,7 +409,6 @@ watch(
                                 <tr>
                                     <td class="px-2 py-2">
                                         <RowMenu
-                                            :product-id="product.id"
                                             :actions="actionsFor(product)"
                                             @select="selectAction(product, $event)"
                                         />
@@ -413,7 +452,6 @@ watch(
                             <tr>
                                 <td class="px-2 py-2">
                                     <RowMenu
-                                        :product-id="product.id"
                                         :actions="actionsFor(product)"
                                         @select="selectAction(product, $event)"
                                     />
@@ -487,19 +525,80 @@ watch(
             </div>
         </div>
 
-        <Modal :show="openProduct !== null" max-width="2xl" @close="openForm = null">
+        <Modal :show="openForm !== null" max-width="2xl" @close="closeAction">
             <Actions
-                v-if="openProduct"
-                :key="openProduct.id"
+                v-if="openProduct && ['offer', 'order', 'ship'].includes(openForm.name)"
+                :key="openProduct.id + openForm.name"
                 :product="openProduct"
                 :actions="actionsFor(openProduct)"
                 :factories="factories"
+                :vehicles="vehicles"
                 :staff="staff"
                 :buttons="false"
                 :modal="true"
                 :active="openForm.name"
-                @close="openForm = null"
+                @close="closeAction"
             />
+            <Editor
+                v-else-if="openForm.name === 'edit' && editor"
+                :key="editor.product.id"
+                :product="editor.product"
+                :categories="editor.categories"
+                :fields="editor.fields"
+                :factories="editor.factories"
+                :can-manage="editor.canManage"
+                modal
+                @close="closeAction"
+            />
+            <div
+                v-else-if="openForm.name === 'activity' && activities"
+                class="max-h-[80vh] overflow-y-auto p-6"
+            >
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <h2 class="text-lg font-medium text-gray-900">Son hareketler</h2>
+                        <p class="mt-1 text-sm text-gray-500">{{ openProduct?.name }}</p>
+                    </div>
+                    <Link
+                        v-if="openProduct"
+                        :href="route('stock-activities.index', { product_id: openProduct.id })"
+                        class="text-sm text-indigo-700 hover:text-indigo-900"
+                    >
+                        Tüm işlemler
+                    </Link>
+                </div>
+                <ul class="mt-6 space-y-3 text-sm">
+                    <li
+                        v-for="activity in activities"
+                        :key="activity.id"
+                        class="rounded border border-gray-100 px-3 py-2"
+                    >
+                        <div class="font-medium text-gray-900">
+                            {{ activity.place }}
+                            · {{ activity.previous_quantity }} → {{ activity.new_quantity }}
+                            · fark {{ activity.difference > 0 ? `+${activity.difference}` : activity.difference }}
+                        </div>
+                        <div class="text-xs text-gray-500">
+                            {{ activity.recorded_at }}
+                            <span v-if="activity.user">
+                                · {{ activity.user.name }}
+                            </span>
+                        </div>
+                        <div v-if="activity.note" class="text-xs text-gray-600">
+                            {{ activity.note }}
+                        </div>
+                    </li>
+                    <li v-if="activities.length === 0" class="text-gray-500">
+                        Henüz hareket yok.
+                    </li>
+                </ul>
+                <div class="mt-6 flex justify-end">
+                    <SecondaryButton type="button" @click="closeAction">Kapat</SecondaryButton>
+                </div>
+            </div>
+            <div v-else class="p-6 text-sm text-gray-500">
+                {{ detailLoading ? 'Yükleniyor...' : 'Kayıt açılamadı.' }}
+            </div>
         </Modal>
 
         <Modal :show="showForm" max-width="2xl" @close="closeForm">

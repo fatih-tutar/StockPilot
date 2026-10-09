@@ -49,6 +49,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         'index', 'store', 'update', 'destroy',
     ]);
 
+    Route::get('products/{product}/editor', [ProductController::class, 'editor'])->name('products.editor');
+    Route::get('products/{product}/activities', [ProductController::class, 'activities'])->name('products.activities');
     Route::resource('products', ProductController::class)->except(['show']);
     Route::get('stock-activities', [StockActivityController::class, 'index'])->name('stock-activities.index');
     Route::post('products/{product}/adjust-stock', [ProductController::class, 'adjust'])
@@ -58,6 +60,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('products/{product}/ship', [ProductController::class, 'ship'])->name('products.ship');
     Route::get('count-reports', [CountReportController::class, 'index'])->name('count-reports.index');
 
+    Route::get('clients/search', [ClientController::class, 'search'])->name('clients.search');
     Route::resource('clients', ClientController::class)->except(['show']);
 
     Route::resource('factories', FactoryController::class)->except(['show']);

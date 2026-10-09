@@ -223,5 +223,13 @@ class CategoryColumnPageTest extends TestCase
                 ->where('fields.2', 'order_quantity')
                 ->where('fields.3', 'warning_count')
                 ->where('fields.4', 'warehouse_warning_count'));
+
+        $this->actingAs($user)
+            ->getJson(route('products.editor', $product))
+            ->assertOk()
+            ->assertJsonPath('product.name', 'Liste disi adet')
+            ->assertJsonPath('fields.2', 'order_quantity')
+            ->assertJsonPath('fields.3', 'warning_count')
+            ->assertJsonPath('fields.4', 'warehouse_warning_count');
     }
 }

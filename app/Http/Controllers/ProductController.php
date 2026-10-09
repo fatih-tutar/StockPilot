@@ -6,6 +6,7 @@ use App\Actions\Stock\AdjustProductStock;
 use App\Enums\FactoryOrderStatus;
 use App\Enums\QuoteStatus;
 use App\Enums\ShipmentStatus;
+use App\Enums\ShipmentType;
 use App\Enums\StockActivityPlace;
 use App\Http\Requests\Catalog\AdjustStockRequest;
 use App\Http\Requests\Catalog\StoreProductRequest;
@@ -21,11 +22,14 @@ use App\Models\Shipment;
 use App\Models\StockActivity;
 use App\Models\StockMovement;
 use App\Models\User;
+use App\Models\Vehicle;
 use App\Support\AccessRoles;
 use App\Support\CategoryColumns;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -87,6 +91,7 @@ class ProductController extends Controller
             'categories' => $this->categoryChoices($request->user()),
             'sheet' => $category === null ? null : $sheet,
             'factories' => Factory::query()->orderBy('name')->get(['id', 'name']),
+            'vehicles' => Vehicle::query()->orderBy('name')->get(['id', 'name']),
             'staff' => User::query()->orderBy('name')->get(['id', 'name']),
             'canManage' => $request->user()->can('stock.manage'),
         ]);
@@ -137,75 +142,24 @@ class ProductController extends Controller
     {
         $this->authorize('view', $product);
 
-        $columns = AccessRoles::visibleColumns($request->user());
-        $product->load(['category.parent', 'sourceFactory:id,name']);
-        $visible = CategoryColumns::visibleNames($product->category, $request->user());
-        $moldNumber = $product->factory_id === null
-            ? null
-            : MoldNumber::query()
-                ->where('product_id', $product->id)
-                ->where('factory_id', $product->factory_id)
-                ->value('number');
-
-        $places = array_values(array_filter([
-            $columns['piece'] ? StockActivityPlace::Store->value : null,
-            $columns['pallet'] ? StockActivityPlace::Pallet->value : null,
-            $columns['alkop'] ? StockActivityPlace::Warehouse->value : null,
-        ], fn ($place) => $place !== null));
-
-        $activities = $product->stockActivities()
-            ->with('user:id,name')
-            ->when($places !== [], fn ($query) => $query->whereIn('place', $places))
-            ->when($places === [], fn ($query) => $query->whereRaw('0 = 1'))
-            ->latest('recorded_at')
-            ->latest('id')
-            ->limit(20)
-            ->get()
-            ->map(fn (StockActivity $activity) => [
-                'id' => $activity->id,
-                'place' => $activity->place->label(),
-                'previous_quantity' => $activity->previous_quantity,
-                'new_quantity' => $activity->new_quantity,
-                'difference' => $activity->new_quantity - $activity->previous_quantity,
-                'note' => $activity->note,
-                'user' => $activity->user?->only(['id', 'name']),
-                'recorded_at' => $activity->recorded_at?->format('d.m.Y H:i'),
-            ]);
-
         return Inertia::render('Products/Form', [
-            'product' => [
-                'id' => $product->id,
-                'category_id' => $product->category_id,
-                'sku' => $product->sku,
-                'name' => $product->name,
-                'description' => $product->description,
-                'quantity_piece' => $columns['piece'] ? $product->quantity_piece : null,
-                'quantity_pallet' => $columns['pallet'] ? $product->quantity_pallet : null,
-                'warehouse_quantity' => $columns['alkop'] ? $product->warehouse_quantity : null,
-                'shelf' => $product->shelf,
-                'unit_weight_kg' => $product->unit_weight_kg,
-                'length_measure' => $product->length_measure,
-                'purchase_price' => $columns['purchase'] ? $product->purchase_price : null,
-                'sale_price' => $columns['sale'] ? $product->sale_price : null,
-                'customer_name' => $product->customer_name,
-                'due_on' => $product->due_on?->toDateString(),
-                'default_order_quantity' => $product->default_order_quantity,
-                'warehouse_low_stock_threshold' => $product->warehouse_low_stock_threshold,
-                'low_stock_threshold' => $product->low_stock_threshold,
-                'is_active' => $product->is_active,
-                'is_low_stock' => $product->isLowStock(),
-                'factory_id' => $product->factory_id,
-                'factory_name' => $product->sourceFactory?->name,
-                'mold_number' => $moldNumber,
-                'category' => $product->category?->only(['id', 'name']),
-            ],
-            'categories' => Category::query()->orderBy('name')->get(['id', 'name']),
-            'fields' => $visible,
-            'factories' => Factory::query()->orderBy('name')->get(['id', 'name']),
-            'staff' => User::query()->orderBy('name')->get(['id', 'name']),
-            'activities' => $activities,
-            'canManage' => $request->user()->can('stock.manage'),
+            ...$this->editorPayload($product, $request->user()),
+            'activities' => $this->recentActivities($product, $request->user()),
         ]);
+    }
+
+    public function editor(Request $request, Product $product): JsonResponse
+    {
+        $this->authorize('view', $product);
+
+        return response()->json($this->editorPayload($product, $request->user()));
+    }
+
+    public function activities(Request $request, Product $product): JsonResponse
+    {
+        $this->authorize('view', $product);
+
+        return response()->json($this->recentActivities($product, $request->user()));
     }
 
     public function update(UpdateProductRequest $request, Product $product): RedirectResponse
@@ -228,9 +182,7 @@ class ProductController extends Controller
             );
         }
 
-        return redirect()
-            ->route('products.edit', $product)
-            ->with('success', 'Ürün güncellendi.');
+        return back()->with('success', 'Ürün güncellendi.');
     }
 
     public function destroy(Product $product): RedirectResponse
@@ -238,9 +190,7 @@ class ProductController extends Controller
         $this->authorize('delete', $product);
 
         if ($product->quantity_piece > 0 || $product->quantity_pallet > 0) {
-            return redirect()
-                ->route('products.edit', $product)
-                ->with('error', 'Ürünü silmeden önce stoğu sıfırlayın.');
+            return back()->with('error', 'Ürünü silmeden önce stoğu sıfırlayın.');
         }
 
         $product->delete();
@@ -374,10 +324,15 @@ class ProductController extends Controller
         $data = $request->validate([
             'client_name' => ['required', 'string', 'max:255'],
             'quantity_piece' => ['required', 'integer', 'min:1'],
-            'quantity_pallet' => ['nullable', 'integer', 'min:0'],
+            'ship_type' => ['required', Rule::enum(ShipmentType::class)],
+            'unit_price' => ['required', 'numeric', 'min:0'],
+            'vehicle_id' => ['nullable', 'integer', Rule::exists(Vehicle::class, 'id')],
+            'notes' => ['nullable', 'string', 'max:1000'],
         ], [
             'client_name.required' => 'Müşteri adı zorunludur.',
             'quantity_piece.required' => 'Adet zorunludur.',
+            'ship_type.required' => 'Sevk tipi seçin.',
+            'unit_price.required' => 'Fiyat zorunludur.',
         ]);
 
         $client = Client::query()->where('name', $data['client_name'])->first();
@@ -387,20 +342,38 @@ class ProductController extends Controller
             ]);
         }
 
-        DB::transaction(function () use ($request, $product, $client, $data): void {
-            $shipment = Shipment::query()->create([
-                'number' => Shipment::nextNumber(),
-                'client_id' => $client->id,
-                'user_id' => $request->user()->id,
-                'status' => ShipmentStatus::Scheduled,
-                'ship_date' => now()->toDateString(),
-            ]);
+        $vehicle = isset($data['vehicle_id'])
+            ? Vehicle::query()->find($data['vehicle_id'])
+            : null;
+
+        DB::transaction(function () use ($request, $product, $client, $data, $vehicle): void {
+            $shipment = Shipment::query()
+                ->where('client_id', $client->id)
+                ->where('status', ShipmentStatus::Scheduled)
+                ->latest('id')
+                ->first();
+
+            if ($shipment === null) {
+                $shipment = Shipment::query()->create([
+                    'number' => Shipment::nextNumber(),
+                    'client_id' => $client->id,
+                    'user_id' => $request->user()->id,
+                    'status' => ShipmentStatus::Scheduled,
+                    'ship_date' => now()->toDateString(),
+                    'ship_type' => $data['ship_type'],
+                    'vehicle_plate' => $vehicle?->license_plate,
+                    'driver_name' => $vehicle?->driver_name,
+                    'notes' => $data['notes'] ?? null,
+                ]);
+            }
+
             $shipment->items()->create([
                 'product_id' => $product->id,
                 'description' => $product->name,
                 'quantity_piece' => $data['quantity_piece'],
-                'quantity_pallet' => $data['quantity_pallet'] ?? 0,
-                'sort_order' => 1,
+                'quantity_pallet' => 0,
+                'unit_price' => $data['unit_price'],
+                'sort_order' => $shipment->items()->count() + 1,
             ]);
         });
 
@@ -503,6 +476,87 @@ class ProductController extends Controller
             'columns' => $columns,
             'actions' => $actions,
         ];
+    }
+
+    /**
+     * @return array{product: array<string, mixed>, categories: mixed, fields: mixed, factories: mixed, canManage: bool}
+     */
+    private function editorPayload(Product $product, User $user): array
+    {
+        $columns = AccessRoles::visibleColumns($user);
+        $product->load(['category.parent', 'sourceFactory:id,name']);
+        $moldNumber = $product->factory_id === null
+            ? null
+            : MoldNumber::query()
+                ->where('product_id', $product->id)
+                ->where('factory_id', $product->factory_id)
+                ->value('number');
+
+        return [
+            'product' => [
+                'id' => $product->id,
+                'category_id' => $product->category_id,
+                'sku' => $product->sku,
+                'name' => $product->name,
+                'description' => $product->description,
+                'quantity_piece' => $columns['piece'] ? $product->quantity_piece : null,
+                'quantity_pallet' => $columns['pallet'] ? $product->quantity_pallet : null,
+                'warehouse_quantity' => $columns['alkop'] ? $product->warehouse_quantity : null,
+                'shelf' => $product->shelf,
+                'unit_weight_kg' => $product->unit_weight_kg,
+                'length_measure' => $product->length_measure,
+                'purchase_price' => $columns['purchase'] ? $product->purchase_price : null,
+                'sale_price' => $columns['sale'] ? $product->sale_price : null,
+                'customer_name' => $product->customer_name,
+                'due_on' => $product->due_on?->toDateString(),
+                'default_order_quantity' => $product->default_order_quantity,
+                'warehouse_low_stock_threshold' => $product->warehouse_low_stock_threshold,
+                'low_stock_threshold' => $product->low_stock_threshold,
+                'is_active' => $product->is_active,
+                'is_low_stock' => $product->isLowStock(),
+                'factory_id' => $product->factory_id,
+                'factory_name' => $product->sourceFactory?->name,
+                'mold_number' => $moldNumber,
+                'category' => $product->category?->only(['id', 'name']),
+            ],
+            'categories' => Category::query()->orderBy('name')->get(['id', 'name']),
+            'fields' => CategoryColumns::visibleNames($product->category, $user),
+            'factories' => Factory::query()->orderBy('name')->get(['id', 'name']),
+            'canManage' => $user->can('stock.manage'),
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function recentActivities(Product $product, User $user): array
+    {
+        $columns = AccessRoles::visibleColumns($user);
+        $places = array_values(array_filter([
+            $columns['piece'] ? StockActivityPlace::Store->value : null,
+            $columns['pallet'] ? StockActivityPlace::Pallet->value : null,
+            $columns['alkop'] ? StockActivityPlace::Warehouse->value : null,
+        ], fn ($place) => $place !== null));
+
+        return $product->stockActivities()
+            ->with('user:id,name')
+            ->when($places !== [], fn ($query) => $query->whereIn('place', $places))
+            ->when($places === [], fn ($query) => $query->whereRaw('0 = 1'))
+            ->latest('recorded_at')
+            ->latest('id')
+            ->limit(20)
+            ->get()
+            ->map(fn (StockActivity $activity) => [
+                'id' => $activity->id,
+                'place' => $activity->place->label(),
+                'previous_quantity' => $activity->previous_quantity,
+                'new_quantity' => $activity->new_quantity,
+                'difference' => $activity->new_quantity - $activity->previous_quantity,
+                'note' => $activity->note,
+                'user' => $activity->user?->only(['id', 'name']),
+                'recorded_at' => $activity->recorded_at?->format('d.m.Y H:i'),
+            ])
+            ->all();
     }
 
     private function requireColumn(Product $product, string $name, User $user): void

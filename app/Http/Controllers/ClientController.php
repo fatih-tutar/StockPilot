@@ -7,8 +7,12 @@ use App\Http\Requests\Catalog\UpdateClientRequest;
 use App\Models\Client;
 use App\Models\CustomOrder;
 use App\Models\Mold;
+use App\Models\Quote;
+use App\Models\Shipment;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -57,6 +61,35 @@ class ClientController extends Controller
         return Inertia::render('Clients/Form', [
             'client' => null,
         ]);
+    }
+
+    public function search(Request $request): JsonResponse
+    {
+        abort_unless(
+            $request->user()->can('create', Quote::class)
+                || $request->user()->can('create', Shipment::class)
+                || $request->user()->can('viewAny', Client::class),
+            403,
+        );
+
+        $term = str_replace(['%', '_'], '', $request->string('term')->trim()->toString());
+
+        if ($term === '') {
+            return response()->json([]);
+        }
+
+        $like = '%'.$term.'%';
+        $clients = Client::query()
+            ->when(
+                DB::getDriverName() === 'pgsql',
+                fn ($query) => $query->where('name', 'ilike', $like),
+                fn ($query) => $query->where('name', 'like', $like),
+            )
+            ->orderBy('name')
+            ->limit(10)
+            ->get(['id', 'name']);
+
+        return response()->json($clients);
     }
 
     public function store(StoreClientRequest $request): RedirectResponse

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ShipmentStatus;
+use App\Enums\ShipmentType;
 use App\Models\Concerns\AssignsCurrentCompany;
 use Database\Factories\ShipmentFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -29,6 +30,7 @@ class Shipment extends Model
         'vehicle_plate',
         'driver_name',
         'shipping_address',
+        'ship_type',
         'notes',
     ];
 
@@ -36,6 +38,7 @@ class Shipment extends Model
     {
         return [
             'status' => ShipmentStatus::class,
+            'ship_type' => ShipmentType::class,
             'ship_date' => 'date',
             'delivery_date' => 'date',
         ];

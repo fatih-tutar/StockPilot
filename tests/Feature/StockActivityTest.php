@@ -67,6 +67,39 @@ class StockActivityTest extends TestCase
                 ->where('activities', fn ($rows) => count($rows) === 2));
     }
 
+    public function test_product_activity_popup_lists_only_visible_places(): void
+    {
+        Permission::findOrCreate('columns.piece');
+        $user = User::factory()->create();
+        $user->givePermissionTo('columns.piece');
+        $product = Product::factory()->create();
+
+        StockActivity::factory()->create([
+            'product_id' => $product->id,
+            'place' => StockActivityPlace::Store,
+            'previous_quantity' => 1,
+            'new_quantity' => 4,
+            'recorded_at' => '2024-06-01 09:15:00',
+        ]);
+        StockActivity::factory()->create([
+            'product_id' => $product->id,
+            'place' => StockActivityPlace::Pallet,
+            'previous_quantity' => 2,
+            'new_quantity' => 3,
+            'recorded_at' => '2024-06-02 11:00:00',
+        ]);
+
+        $this->actingAs($user)
+            ->getJson(route('products.activities', $product))
+            ->assertOk()
+            ->assertJsonCount(1)
+            ->assertJsonPath('0.place', 'Mağaza')
+            ->assertJsonPath('0.previous_quantity', 1)
+            ->assertJsonPath('0.new_quantity', 4)
+            ->assertJsonPath('0.difference', 3)
+            ->assertJsonPath('0.recorded_at', '01.06.2024 09:15');
+    }
+
     public function test_adjusting_stock_records_the_place_that_changed(): void
     {
         Permission::findOrCreate('stock.manage');
