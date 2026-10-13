@@ -4,6 +4,7 @@ import DangerButton from '@/Components/DangerButton.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
@@ -15,7 +16,10 @@ const props = defineProps({
     products: { type: Array, required: true },
     statusOptions: { type: Array, required: true },
     canManage: { type: Boolean, default: false },
+    modal: { type: Boolean, default: false },
 });
+
+const emit = defineEmits(['close']);
 
 const page = usePage();
 const flashSuccess = computed(() => page.props.flash?.success);
@@ -115,7 +119,14 @@ const submit = () => {
             preserveScroll: true,
         });
     } else {
-        form.transform(() => payload).post(route('shipments.store'));
+        form.transform(() => payload).post(route('shipments.store'), {
+            preserveScroll: true,
+            onSuccess: () => {
+                if (props.modal) {
+                    emit('close');
+                }
+            },
+        });
     }
 };
 
@@ -128,10 +139,14 @@ const destroyShipment = () => {
 </script>
 
 <template>
-    <Head :title="isEdit ? `Sevkiyat ${shipment.number}` : 'Yeni sevkiyat'" />
+    <div>
+        <Head v-if="!modal" :title="isEdit ? `Sevkiyat ${shipment.number}` : 'Yeni sevkiyat'" />
 
-    <AuthenticatedLayout>
-        <template #header>
+        <component
+            :is="modal ? 'div' : AuthenticatedLayout"
+            :class="modal ? 'max-h-[80vh] overflow-y-auto' : null"
+        >
+            <template v-if="!modal" #header>
             <div class="flex items-center justify-between gap-4">
                 <h2 class="text-xl font-semibold leading-tight text-gray-800">
                     {{ isEdit ? shipment.number : 'Yeni sevkiyat' }}
@@ -145,23 +160,25 @@ const destroyShipment = () => {
             </div>
         </template>
 
-        <div class="py-8">
-            <div class="mx-auto max-w-6xl space-y-6 sm:px-6 lg:px-8">
-                <div
-                    v-if="flashSuccess"
+            <div :class="modal ? 'space-y-6 p-6' : 'py-8'">
+                <div :class="modal ? 'space-y-6' : 'mx-auto max-w-6xl space-y-6 sm:px-6 lg:px-8'">
+                    <h2 v-if="modal" class="text-lg font-medium text-gray-900">Yeni sevkiyat</h2>
+                    <div
+                        v-if="!modal && flashSuccess"
                     class="rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800"
                 >
                     {{ flashSuccess }}
                 </div>
-                <div
-                    v-if="flashError"
+                    <div
+                        v-if="!modal && flashError"
                     class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
                 >
                     {{ flashError }}
                 </div>
 
                 <form
-                    class="space-y-6 bg-white p-6 shadow-sm sm:rounded-lg"
+                    class="space-y-6"
+                    :class="modal ? '' : 'bg-white p-6 shadow-sm sm:rounded-lg'"
                     @submit.prevent="submit"
                 >
                     <div class="grid gap-4 md:grid-cols-2">
@@ -382,7 +399,10 @@ const destroyShipment = () => {
                         </div>
                     </div>
 
-                    <div v-if="!readOnly" class="flex gap-3">
+                    <div v-if="!readOnly" class="flex gap-3" :class="modal ? 'justify-end' : ''">
+                        <SecondaryButton v-if="modal" type="button" @click="emit('close')">
+                            İptal
+                        </SecondaryButton>
                         <PrimaryButton :disabled="form.processing">
                             {{ isEdit ? 'Sevkiyatı kaydet' : 'Sevkiyat oluştur' }}
                         </PrimaryButton>
@@ -396,7 +416,8 @@ const destroyShipment = () => {
                         </DangerButton>
                     </div>
                 </form>
+                </div>
             </div>
-        </div>
-    </AuthenticatedLayout>
+        </component>
+    </div>
 </template>

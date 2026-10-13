@@ -140,6 +140,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->except(['show'])
         ->parameters(['offer-lists' => 'offer_list_entry']);
 
+    Route::get('shipments/create-data', [ShipmentController::class, 'createData'])
+        ->name('shipments.create-data');
     Route::resource('shipments', ShipmentController::class)->except(['show']);
 });
 

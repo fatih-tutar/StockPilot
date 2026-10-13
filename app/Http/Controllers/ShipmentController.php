@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\Quote;
 use App\Models\Shipment;
 use App\Models\ShipmentItem;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -80,12 +81,16 @@ class ShipmentController extends Controller
 
         return Inertia::render('Shipments/Form', [
             'shipment' => null,
-            'clients' => $this->clientOptions(),
-            'quotes' => $this->quoteOptions(),
-            'products' => $this->productOptions(),
-            'statusOptions' => ShipmentStatus::options(),
+            ...$this->formOptions(),
             'canManage' => true,
         ]);
+    }
+
+    public function createData(): JsonResponse
+    {
+        $this->authorize('create', Shipment::class);
+
+        return response()->json($this->formOptions());
     }
 
     public function store(StoreShipmentRequest $request): RedirectResponse
@@ -112,9 +117,7 @@ class ShipmentController extends Controller
             return $shipment;
         });
 
-        return redirect()
-            ->route('shipments.edit', $shipment)
-            ->with('success', 'Sevkiyat oluşturuldu.');
+        return back()->with('success', 'Sevkiyat oluşturuldu.');
     }
 
     public function edit(Request $request, Shipment $shipment): Response
@@ -209,6 +212,7 @@ class ShipmentController extends Controller
                 if ($existing) {
                     $existing->update($payload);
                     $keptIds[] = $existing->id;
+
                     continue;
                 }
             }
@@ -218,6 +222,19 @@ class ShipmentController extends Controller
         }
 
         $shipment->items()->whereNotIn('id', $keptIds)->delete();
+    }
+
+    /**
+     * @return array{clients: array<int, array{id: int, name: string}>, quotes: array<int, array{id: int, number: string, client_id: int}>, products: array<int, array{id: int, name: string, sku: string|null}>, statusOptions: array<int, array{value: string, label: string}>}
+     */
+    private function formOptions(): array
+    {
+        return [
+            'clients' => $this->clientOptions(),
+            'quotes' => $this->quoteOptions(),
+            'products' => $this->productOptions(),
+            'statusOptions' => ShipmentStatus::options(),
+        ];
     }
 
     /**

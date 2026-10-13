@@ -1,8 +1,11 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import InputLabel from '@/Components/InputLabel.vue';
+import Modal from '@/Components/Modal.vue';
 import TextInput from '@/Components/TextInput.vue';
+import ShipmentForm from '@/Pages/Shipments/Form.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
+import axios from 'axios';
 import { computed, ref, watch } from 'vue';
 
 const props = defineProps({
@@ -31,6 +34,30 @@ const applyFilters = () => {
 
 watch(search, applyFilters);
 watch(status, applyFilters);
+
+const createOpen = ref(false);
+const createOptions = ref(null);
+const createError = ref('');
+
+const openCreate = async () => {
+    createOpen.value = true;
+    createError.value = '';
+
+    if (createOptions.value) {
+        return;
+    }
+
+    try {
+        const { data } = await axios.get(route('shipments.create-data'));
+        createOptions.value = data;
+    } catch {
+        createError.value = 'Form yüklenemedi.';
+    }
+};
+
+const closeCreate = () => {
+    createOpen.value = false;
+};
 </script>
 
 <template>
@@ -42,13 +69,14 @@ watch(status, applyFilters);
                 <h2 class="text-xl font-semibold leading-tight text-gray-800">
                     Sevkiyatlar
                 </h2>
-                <Link
+                <button
                     v-if="canManage"
-                    :href="route('shipments.create')"
+                    type="button"
                     class="inline-flex items-center rounded-md border border-transparent bg-gray-800 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white transition hover:bg-gray-700"
+                    @click="openCreate"
                 >
                     Yeni sevkiyat
-                </Link>
+                </button>
             </div>
         </template>
 
@@ -181,5 +209,21 @@ watch(status, applyFilters);
                 </div>
             </div>
         </div>
+
+        <Modal :show="createOpen" max-width="6xl" @close="closeCreate">
+            <ShipmentForm
+                v-if="createOptions"
+                modal
+                :clients="createOptions.clients"
+                :quotes="createOptions.quotes"
+                :products="createOptions.products"
+                :status-options="createOptions.statusOptions"
+                can-manage
+                @close="closeCreate"
+            />
+            <div v-else class="p-6 text-sm text-gray-500">
+                {{ createError || 'Yükleniyor…' }}
+            </div>
+        </Modal>
     </AuthenticatedLayout>
 </template>
