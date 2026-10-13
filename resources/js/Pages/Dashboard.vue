@@ -101,7 +101,7 @@ const movementTypeLabel = (type) => {
                         v-if="can.shipments"
                         class="bg-white p-5 shadow-sm sm:rounded-lg"
                     >
-                        <p class="text-sm text-gray-500">Aktif sevkiyat</p>
+                        <p class="text-sm text-gray-500">Aktif müşteri siparişi</p>
                         <p class="mt-2 text-3xl font-semibold text-gray-900">
                             {{ stats.active_shipments_count }}
                         </p>
@@ -109,7 +109,7 @@ const movementTypeLabel = (type) => {
                             :href="route('shipments.index')"
                             class="mt-3 inline-block text-sm text-indigo-600 hover:text-indigo-800"
                         >
-                            Sevkiyatlara git
+                            Müşteri siparişlerine git
                         </Link>
                     </div>
                 </div>
@@ -214,7 +214,7 @@ const movementTypeLabel = (type) => {
                         class="overflow-hidden bg-white shadow-sm sm:rounded-lg"
                     >
                         <div class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
-                            <h3 class="font-medium text-gray-900">Aktif sevkiyatlar</h3>
+                            <h3 class="font-medium text-gray-900">Aktif müşteri siparişleri</h3>
                             <Link
                                 :href="route('shipments.index')"
                                 class="text-sm text-indigo-600 hover:text-indigo-800"
@@ -249,7 +249,7 @@ const movementTypeLabel = (type) => {
                                 v-if="activeShipments.length === 0"
                                 class="px-4 py-8 text-center text-gray-500"
                             >
-                                Aktif sevkiyat yok.
+                                Aktif müşteri siparişi yok.
                             </li>
                         </ul>
                     </section>

@@ -1,9 +1,12 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import InputLabel from '@/Components/InputLabel.vue';
+import Modal from '@/Components/Modal.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
+import FactoryOrderForm from '@/Pages/FactoryOrders/Form.vue';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
+import axios from 'axios';
 import { computed, ref, watch } from 'vue';
 
 const props = defineProps({
@@ -74,6 +77,40 @@ const printForm = () => {
     createForm.factory_id = factoryId.value;
     createForm.post(route('factory-order-forms.store'));
 };
+
+const formOpen = ref(false);
+const formPayload = ref(null);
+const formError = ref('');
+
+const openCreateOrder = async () => {
+    formPayload.value = null;
+    formOpen.value = true;
+    formError.value = '';
+
+    try {
+        const { data } = await axios.get(route('factory-orders.form-data'));
+        formPayload.value = data;
+    } catch {
+        formError.value = 'Form yüklenemedi.';
+    }
+};
+
+const openEditOrder = async (orderId) => {
+    formPayload.value = null;
+    formOpen.value = true;
+    formError.value = '';
+
+    try {
+        const { data } = await axios.get(route('factory-orders.editor', orderId));
+        formPayload.value = data;
+    } catch {
+        formError.value = 'Form yüklenemedi.';
+    }
+};
+
+const closeOrderForm = () => {
+    formOpen.value = false;
+};
 </script>
 
 <template>
@@ -92,13 +129,14 @@ const printForm = () => {
                     >
                         Form arşivi
                     </Link>
-                    <Link
+                    <button
                         v-if="canManage"
-                        :href="route('factory-orders.create', { factory_id: factoryId || undefined })"
+                        type="button"
                         class="inline-flex items-center rounded-md border border-transparent bg-gray-800 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white transition hover:bg-gray-700"
+                        @click="openCreateOrder"
                     >
-                        Yeni sipariş
-                    </Link>
+                        Yeni fabrika siparişi
+                    </button>
                 </div>
             </div>
         </template>
@@ -234,13 +272,14 @@ const printForm = () => {
                                 </td>
                                 <td class="px-4 py-3 text-right">
                                     <div class="flex flex-col items-end gap-2">
-                                        <Link
+                                        <button
                                             v-if="canManage"
-                                            :href="route('factory-orders.edit', order.id)"
+                                            type="button"
                                             class="text-indigo-600 hover:text-indigo-800"
+                                            @click="openEditOrder(order.id)"
                                         >
                                             Düzenle
-                                        </Link>
+                                        </button>
                                         <div
                                             v-if="canManage && order.status === 'open'"
                                             class="flex items-center gap-1"
@@ -278,7 +317,7 @@ const printForm = () => {
                             </tr>
                             <tr v-if="orders.data.length === 0">
                                 <td colspan="10" class="px-4 py-8 text-center text-gray-500">
-                                    Sipariş bulunamadı.
+                                    Fabrika siparişi bulunamadı.
                                 </td>
                             </tr>
                         </tbody>
@@ -300,5 +339,23 @@ const printForm = () => {
                 </div>
             </div>
         </div>
+
+        <Modal :show="formOpen" max-width="2xl" @close="closeOrderForm">
+            <FactoryOrderForm
+                v-if="formPayload"
+                :key="formPayload.order?.id || 'new'"
+                modal
+                :order="formPayload.order"
+                :factories="formPayload.factories"
+                :users="formPayload.users"
+                :products="formPayload.products"
+                :filters="formPayload.filters"
+                :selected-factory-id="formPayload.selectedFactoryId"
+                @close="closeOrderForm"
+            />
+            <div v-else class="p-6 text-sm text-gray-500">
+                {{ formError || 'Yükleniyor…' }}
+            </div>
+        </Modal>
     </AuthenticatedLayout>
 </template>

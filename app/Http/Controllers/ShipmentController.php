@@ -117,42 +117,21 @@ class ShipmentController extends Controller
             return $shipment;
         });
 
-        return back()->with('success', 'Sevkiyat oluşturuldu.');
+        return back()->with('success', 'Müşteri siparişi oluşturuldu.');
     }
 
     public function edit(Request $request, Shipment $shipment): Response
     {
         $this->authorize('view', $shipment);
 
-        $shipment->load(['items.product:id,name,sku', 'client:id,name', 'quote:id,number']);
+        return Inertia::render('Shipments/Form', $this->editorPayload($request, $shipment));
+    }
 
-        return Inertia::render('Shipments/Form', [
-            'shipment' => [
-                'id' => $shipment->id,
-                'number' => $shipment->number,
-                'client_id' => $shipment->client_id,
-                'quote_id' => $shipment->quote_id,
-                'status' => $shipment->status->value,
-                'ship_date' => $shipment->ship_date?->toDateString(),
-                'delivery_date' => $shipment->delivery_date?->toDateString(),
-                'vehicle_plate' => $shipment->vehicle_plate,
-                'driver_name' => $shipment->driver_name,
-                'shipping_address' => $shipment->shipping_address,
-                'notes' => $shipment->notes,
-                'items' => $shipment->items->map(fn (ShipmentItem $item) => [
-                    'id' => $item->id,
-                    'product_id' => $item->product_id,
-                    'description' => $item->description,
-                    'quantity_piece' => $item->quantity_piece,
-                    'quantity_pallet' => $item->quantity_pallet,
-                ])->values(),
-            ],
-            'clients' => $this->clientOptions(),
-            'quotes' => $this->quoteOptions($shipment->quote_id),
-            'products' => $this->productOptions(),
-            'statusOptions' => ShipmentStatus::options(),
-            'canManage' => $request->user()->can('shipments.manage'),
-        ]);
+    public function editor(Request $request, Shipment $shipment): JsonResponse
+    {
+        $this->authorize('view', $shipment);
+
+        return response()->json($this->editorPayload($request, $shipment));
     }
 
     public function update(UpdateShipmentRequest $request, Shipment $shipment): RedirectResponse
@@ -175,9 +154,7 @@ class ShipmentController extends Controller
             $this->syncItems($shipment, $data['items']);
         });
 
-        return redirect()
-            ->route('shipments.edit', $shipment)
-            ->with('success', 'Sevkiyat güncellendi.');
+        return back()->with('success', 'Müşteri siparişi güncellendi.');
     }
 
     public function destroy(Shipment $shipment): RedirectResponse
@@ -188,7 +165,7 @@ class ShipmentController extends Controller
 
         return redirect()
             ->route('shipments.index')
-            ->with('success', 'Sevkiyat silindi.');
+            ->with('success', 'Müşteri siparişi silindi.');
     }
 
     /**
@@ -222,6 +199,42 @@ class ShipmentController extends Controller
         }
 
         $shipment->items()->whereNotIn('id', $keptIds)->delete();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function editorPayload(Request $request, Shipment $shipment): array
+    {
+        $shipment->load(['items.product:id,name,sku', 'client:id,name', 'quote:id,number']);
+
+        return [
+            'shipment' => [
+                'id' => $shipment->id,
+                'number' => $shipment->number,
+                'client_id' => $shipment->client_id,
+                'quote_id' => $shipment->quote_id,
+                'status' => $shipment->status->value,
+                'ship_date' => $shipment->ship_date?->toDateString(),
+                'delivery_date' => $shipment->delivery_date?->toDateString(),
+                'vehicle_plate' => $shipment->vehicle_plate,
+                'driver_name' => $shipment->driver_name,
+                'shipping_address' => $shipment->shipping_address,
+                'notes' => $shipment->notes,
+                'items' => $shipment->items->map(fn (ShipmentItem $item) => [
+                    'id' => $item->id,
+                    'product_id' => $item->product_id,
+                    'description' => $item->description,
+                    'quantity_piece' => $item->quantity_piece,
+                    'quantity_pallet' => $item->quantity_pallet,
+                ])->values(),
+            ],
+            'clients' => $this->clientOptions(),
+            'quotes' => $this->quoteOptions($shipment->quote_id),
+            'products' => $this->productOptions(),
+            'statusOptions' => ShipmentStatus::options(),
+            'canManage' => $request->user()->can('shipments.manage'),
+        ];
     }
 
     /**

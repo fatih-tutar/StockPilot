@@ -95,7 +95,7 @@ class ShipmentTest extends TestCase
         $this->assertSame('34 SP 10', $shipment->vehicle_plate);
         $this->assertCount(1, $shipment->items);
         $this->assertSame(12, $shipment->items->first()->quantity_piece);
-        $response->assertSessionHas('success', 'Sevkiyat oluşturuldu.');
+        $response->assertSessionHas('success', 'Müşteri siparişi oluşturuldu.');
     }
 
     public function test_create_form_data_requires_manage_permission(): void
@@ -121,6 +121,33 @@ class ShipmentTest extends TestCase
             ->assertJsonPath('clients.0.name', 'Deneme Firma')
             ->assertJsonPath('products.0.name', 'Deneme Profil')
             ->assertJsonStructure(['clients', 'quotes', 'products', 'statusOptions']);
+    }
+
+    public function test_shipment_editor_is_available_to_viewers(): void
+    {
+        $user = User::factory()->create();
+        Permission::findOrCreate('shipments.view');
+        $user->givePermissionTo('shipments.view');
+        $shipment = Shipment::factory()->create([
+            'user_id' => $user->id,
+            'number' => 'S-2026-0100',
+        ]);
+
+        $this->actingAs($user)
+            ->getJson(route('shipments.editor', $shipment))
+            ->assertOk()
+            ->assertJsonPath('shipment.number', 'S-2026-0100')
+            ->assertJsonStructure(['clients', 'products', 'statusOptions']);
+    }
+
+    public function test_shipment_editor_requires_view_permission(): void
+    {
+        $user = User::factory()->create();
+        $shipment = Shipment::factory()->create(['user_id' => $user->id]);
+
+        $this->actingAs($user)
+            ->getJson(route('shipments.editor', $shipment))
+            ->assertForbidden();
     }
 
     public function test_legacy_import_keeps_shipment_lines_vehicle_and_archive_status(): void

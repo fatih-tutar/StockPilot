@@ -38,18 +38,37 @@ watch(status, applyFilters);
 const createOpen = ref(false);
 const createOptions = ref(null);
 const createError = ref('');
+const editingShipment = ref(null);
 
 const openCreate = async () => {
+    editingShipment.value = null;
     createOpen.value = true;
     createError.value = '';
 
-    if (createOptions.value) {
+    if (createOptions.value?.clients && !createOptions.value.shipment) {
         return;
     }
+
+    createOptions.value = null;
 
     try {
         const { data } = await axios.get(route('shipments.create-data'));
         createOptions.value = data;
+    } catch {
+        createError.value = 'Form yüklenemedi.';
+    }
+};
+
+const openEdit = async (shipmentId) => {
+    editingShipment.value = null;
+    createOpen.value = true;
+    createError.value = '';
+    createOptions.value = null;
+
+    try {
+        const { data } = await axios.get(route('shipments.editor', shipmentId));
+        createOptions.value = data;
+        editingShipment.value = data.shipment;
     } catch {
         createError.value = 'Form yüklenemedi.';
     }
@@ -61,13 +80,13 @@ const closeCreate = () => {
 </script>
 
 <template>
-    <Head title="Sevkiyatlar" />
+    <Head title="Müşteri siparişleri" />
 
     <AuthenticatedLayout>
         <template #header>
             <div class="flex items-center justify-between gap-4">
                 <h2 class="text-xl font-semibold leading-tight text-gray-800">
-                    Sevkiyatlar
+                    Müşteri siparişleri
                 </h2>
                 <button
                     v-if="canManage"
@@ -75,7 +94,7 @@ const closeCreate = () => {
                     class="inline-flex items-center rounded-md border border-transparent bg-gray-800 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white transition hover:bg-gray-700"
                     @click="openCreate"
                 >
-                    Yeni sevkiyat
+                    Yeni müşteri siparişi
                 </button>
             </div>
         </template>
@@ -102,7 +121,7 @@ const closeCreate = () => {
                             id="search"
                             v-model="search"
                             class="mt-1 block w-full"
-                            placeholder="Sevkiyat no, müşteri, plaka"
+                            placeholder="Sipariş no, müşteri, plaka"
                         />
                     </div>
                     <div>
@@ -172,17 +191,18 @@ const closeCreate = () => {
                                     </span>
                                 </td>
                                 <td class="px-4 py-3 text-right">
-                                    <Link
-                                        :href="route('shipments.edit', shipment.id)"
+                                    <button
+                                        type="button"
                                         class="text-indigo-600 hover:text-indigo-800"
+                                        @click="openEdit(shipment.id)"
                                     >
                                         Aç
-                                    </Link>
+                                    </button>
                                 </td>
                             </tr>
                             <tr v-if="shipments.data.length === 0">
                                 <td colspan="6" class="px-4 py-8 text-center text-gray-500">
-                                    Sevkiyat bulunamadı.
+                                    Müşteri siparişi bulunamadı.
                                 </td>
                             </tr>
                         </tbody>
@@ -213,12 +233,14 @@ const closeCreate = () => {
         <Modal :show="createOpen" max-width="6xl" @close="closeCreate">
             <ShipmentForm
                 v-if="createOptions"
+                :key="editingShipment?.id || 'new'"
                 modal
+                :shipment="editingShipment"
                 :clients="createOptions.clients"
                 :quotes="createOptions.quotes"
                 :products="createOptions.products"
                 :status-options="createOptions.statusOptions"
-                can-manage
+                :can-manage="canManage"
                 @close="closeCreate"
             />
             <div v-else class="p-6 text-sm text-gray-500">

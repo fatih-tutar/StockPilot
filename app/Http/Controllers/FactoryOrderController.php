@@ -16,6 +16,7 @@ use App\Models\StockActivity;
 use App\Models\StockMovement;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -72,6 +73,13 @@ class FactoryOrderController extends Controller
         return Inertia::render('FactoryOrders/Form', $this->formProps($request));
     }
 
+    public function formData(Request $request): JsonResponse
+    {
+        $this->authorize('create', FactoryOrder::class);
+
+        return response()->json($this->formProps($request));
+    }
+
     public function store(StoreFactoryOrderRequest $request): RedirectResponse
     {
         $order = FactoryOrder::query()->create($this->orderAttributes($request->validated(), $request->user()));
@@ -85,10 +93,14 @@ class FactoryOrderController extends Controller
     {
         $this->authorize('update', $factoryOrder);
 
-        return Inertia::render('FactoryOrders/Form', [
-            ...$this->formProps($request, $factoryOrder),
-            'order' => $this->orderPayload($factoryOrder->load(['sourceFactory:id,name', 'preparedBy:id,name', 'product:id,name,factory_id'])),
-        ]);
+        return Inertia::render('FactoryOrders/Form', $this->editorPayload($request, $factoryOrder));
+    }
+
+    public function editor(Request $request, FactoryOrder $factoryOrder): JsonResponse
+    {
+        $this->authorize('update', $factoryOrder);
+
+        return response()->json($this->editorPayload($request, $factoryOrder));
     }
 
     public function update(UpdateFactoryOrderRequest $request, FactoryOrder $factoryOrder): RedirectResponse
@@ -147,6 +159,17 @@ class FactoryOrderController extends Controller
         $factoryOrder->update(['status' => FactoryOrderStatus::Received]);
 
         return back()->with('success', 'Sipariş teslim alındı ve stok güncellendi.');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function editorPayload(Request $request, FactoryOrder $factoryOrder): array
+    {
+        return [
+            ...$this->formProps($request, $factoryOrder),
+            'order' => $this->orderPayload($factoryOrder->load(['sourceFactory:id,name', 'preparedBy:id,name', 'product:id,name,factory_id'])),
+        ];
     }
 
     /**

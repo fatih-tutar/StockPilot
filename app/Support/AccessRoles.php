@@ -165,7 +165,7 @@ class AccessRoles
             'factory_orders' => 'Fabrika siparişleri',
             'molds' => 'Kalıplar',
             'catalog' => 'Fiyat listesi',
-            'shipments' => 'Sevkiyatlar',
+            'shipments' => 'Müşteri siparişleri',
             'vehicles' => 'Araçlar',
             'count_reports' => 'Sayım raporu',
             'columns' => 'Sütunlar',

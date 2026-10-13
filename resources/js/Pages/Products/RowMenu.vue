@@ -15,8 +15,8 @@ const position = ref({ top: 0, left: 0 });
 const menuItems = [
     { name: 'stock', label: 'Stok güncelle', stock: true },
     { name: 'offer', label: 'Teklif', action: 'offer_button' },
-    { name: 'order', label: 'Sipariş', action: 'order_button' },
-    { name: 'ship', label: 'Sevkiyat', action: 'shipment_button' },
+    { name: 'order', label: 'Fabrika siparişi', action: 'order_button' },
+    { name: 'ship', label: 'Müşteri siparişi', action: 'shipment_button' },
     { name: 'edit', label: 'Düzenle' },
     { name: 'activity', label: 'Son hareketler' },
 ];
@@ -98,7 +98,7 @@ onUnmounted(() => {
         <Teleport to="body">
             <div
                 v-if="open"
-                class="fixed z-50 w-48 rounded-md bg-white py-1 shadow-lg ring-1 ring-black/5"
+                class="fixed z-50 w-56 rounded-md bg-white py-1 shadow-lg ring-1 ring-black/5"
                 :style="{ top: `${position.top}px`, left: `${position.left}px` }"
                 @click.stop
             >

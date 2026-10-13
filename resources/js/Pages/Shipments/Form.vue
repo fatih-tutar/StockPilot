@@ -117,6 +117,11 @@ const submit = () => {
     if (isEdit.value) {
         form.transform(() => payload).put(route('shipments.update', props.shipment.id), {
             preserveScroll: true,
+            onSuccess: () => {
+                if (props.modal) {
+                    emit('close');
+                }
+            },
         });
     } else {
         form.transform(() => payload).post(route('shipments.store'), {
@@ -140,7 +145,7 @@ const destroyShipment = () => {
 
 <template>
     <div>
-        <Head v-if="!modal" :title="isEdit ? `Sevkiyat ${shipment.number}` : 'Yeni sevkiyat'" />
+        <Head v-if="!modal" :title="isEdit ? shipment.number : 'Yeni müşteri siparişi'" />
 
         <component
             :is="modal ? 'div' : AuthenticatedLayout"
@@ -149,20 +154,25 @@ const destroyShipment = () => {
             <template v-if="!modal" #header>
             <div class="flex items-center justify-between gap-4">
                 <h2 class="text-xl font-semibold leading-tight text-gray-800">
-                    {{ isEdit ? shipment.number : 'Yeni sevkiyat' }}
+                    {{ isEdit ? shipment.number : 'Yeni müşteri siparişi' }}
                 </h2>
                 <Link
                     :href="route('shipments.index')"
                     class="text-sm text-gray-600 hover:text-gray-900"
                 >
-                    Sevkiyatlara dön
+                    Müşteri siparişlerine dön
                 </Link>
             </div>
         </template>
 
             <div :class="modal ? 'space-y-6 p-6' : 'py-8'">
                 <div :class="modal ? 'space-y-6' : 'mx-auto max-w-6xl space-y-6 sm:px-6 lg:px-8'">
-                    <h2 v-if="modal" class="text-lg font-medium text-gray-900">Yeni sevkiyat</h2>
+                    <template v-if="modal">
+                        <p class="text-sm font-medium text-gray-500">Müşteri siparişi</p>
+                        <h2 class="mt-1 text-lg font-semibold text-gray-900">
+                            {{ isEdit ? shipment.number : 'Yeni müşteri siparişi' }}
+                        </h2>
+                    </template>
                     <div
                         v-if="!modal && flashSuccess"
                     class="rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800"
@@ -404,7 +414,7 @@ const destroyShipment = () => {
                             İptal
                         </SecondaryButton>
                         <PrimaryButton :disabled="form.processing">
-                            {{ isEdit ? 'Sevkiyatı kaydet' : 'Sevkiyat oluştur' }}
+                            {{ isEdit ? 'Kaydet' : 'Müşteri siparişi oluştur' }}
                         </PrimaryButton>
                         <DangerButton
                             v-if="isEdit && canManage"

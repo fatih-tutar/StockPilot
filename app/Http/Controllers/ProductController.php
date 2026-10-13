@@ -387,7 +387,7 @@ class ProductController extends Controller
             ]);
         });
 
-        return back()->with('success', 'Sevkiyat planlandı.');
+        return back()->with('success', 'Müşteri siparişi eklendi.');
     }
 
     /**

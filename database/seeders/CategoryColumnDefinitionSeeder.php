@@ -33,8 +33,8 @@ class CategoryColumnDefinitionSeeder extends Seeder
             ['name' => 'due_date', 'label' => 'Termin', 'group' => CategoryColumnGroup::Form, 'sort_order' => 17],
             ['name' => 'manual_sales', 'label' => 'Manuel Satış', 'group' => CategoryColumnGroup::Form, 'sort_order' => 18],
             ['name' => 'offer_button', 'label' => 'Teklif Butonu', 'group' => CategoryColumnGroup::Action, 'sort_order' => 19],
-            ['name' => 'order_button', 'label' => 'Sipariş Butonu', 'group' => CategoryColumnGroup::Action, 'sort_order' => 20],
-            ['name' => 'shipment_button', 'label' => 'Sevkiyat Butonu', 'group' => CategoryColumnGroup::Action, 'sort_order' => 21],
+            ['name' => 'order_button', 'label' => 'Fabrika siparişi butonu', 'group' => CategoryColumnGroup::Action, 'sort_order' => 20],
+            ['name' => 'shipment_button', 'label' => 'Müşteri siparişi butonu', 'group' => CategoryColumnGroup::Action, 'sort_order' => 21],
             ['name' => 'edit_button', 'label' => 'Düzenle Butonu', 'group' => CategoryColumnGroup::Action, 'sort_order' => 22],
         ];
 

@@ -92,6 +92,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('goods-flows/report', [GoodsFlowController::class, 'report'])->name('goods-flows.report');
     Route::resource('goods-flows', GoodsFlowController::class)->only(['index', 'store', 'update', 'destroy']);
 
+    Route::get('factory-orders/form-data', [FactoryOrderController::class, 'formData'])
+        ->name('factory-orders.form-data');
+    Route::get('factory-orders/{factory_order}/editor', [FactoryOrderController::class, 'editor'])
+        ->name('factory-orders.editor');
     Route::post('factory-orders/{factory_order}/receive', [FactoryOrderController::class, 'receive'])
         ->name('factory-orders.receive');
     Route::resource('factory-orders', FactoryOrderController::class)->except(['show']);
@@ -142,6 +146,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('shipments/create-data', [ShipmentController::class, 'createData'])
         ->name('shipments.create-data');
+    Route::get('shipments/{shipment}/editor', [ShipmentController::class, 'editor'])
+        ->name('shipments.editor');
     Route::resource('shipments', ShipmentController::class)->except(['show']);
 });
 

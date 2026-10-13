@@ -86,6 +86,12 @@ const menus = computed(() => {
                     visible: allowed('quotes.view', 'quotes.manage'),
                 },
                 {
+                    label: 'Müşteri siparişleri',
+                    href: route('shipments.index'),
+                    active: route().current('shipments.*'),
+                    visible: allowed('shipments.view', 'shipments.manage'),
+                },
+                {
                     label: 'Özel siparişler',
                     href: route('custom-orders.index'),
                     active: route().current('custom-orders.*'),
@@ -119,12 +125,6 @@ const menus = computed(() => {
         {
             label: 'Sevkiyat',
             items: [
-                {
-                    label: 'Sevkiyatlar',
-                    href: route('shipments.index'),
-                    active: route().current('shipments.*'),
-                    visible: allowed('shipments.view', 'shipments.manage'),
-                },
                 {
                     label: 'Araçlar',
                     href: route('vehicles.index'),

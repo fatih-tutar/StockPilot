@@ -3,8 +3,10 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import axios from 'axios';
 import { computed, ref, watch } from 'vue';
 
 const props = defineProps({
@@ -14,10 +16,15 @@ const props = defineProps({
     products: { type: Array, required: true },
     filters: { type: Object, required: true },
     selectedFactoryId: { type: Number, default: null },
+    modal: { type: Boolean, default: false },
 });
+
+const emit = defineEmits(['close']);
 
 const isEdit = computed(() => !!props.order?.id);
 const productSearch = ref(props.filters.product || '');
+const productChoices = ref(props.products);
+let productSearchRequest = 0;
 
 const form = useForm({
     factory_id: props.order?.factory_id || props.selectedFactoryId || '',
@@ -30,7 +37,32 @@ const form = useForm({
     prepared_by_user_id: props.order?.prepared_by_user_id || '',
 });
 
-watch(productSearch, (value) => {
+watch(
+    () => props.products,
+    (value) => {
+        productChoices.value = value;
+    },
+);
+
+watch(productSearch, async (value) => {
+    if (props.modal) {
+        const requestId = ++productSearchRequest;
+        const { data } = await axios.get(route('factory-orders.form-data'), {
+            params: {
+                product: value || undefined,
+                product_id: form.product_id || undefined,
+            },
+        });
+
+        if (requestId !== productSearchRequest) {
+            return;
+        }
+
+        productChoices.value = data.products;
+
+        return;
+    }
+
     router.get(
         isEdit.value ? route('factory-orders.edit', props.order.id) : route('factory-orders.create'),
         {
@@ -58,41 +90,68 @@ const submit = () => {
         prepared_by_user_id: form.prepared_by_user_id ? Number(form.prepared_by_user_id) : null,
     };
 
+    const options = {
+        preserveScroll: true,
+        onSuccess: () => {
+            if (props.modal) {
+                emit('close');
+            }
+        },
+    };
+
     if (isEdit.value) {
-        form.transform(() => payload).put(route('factory-orders.update', props.order.id));
+        form.transform(() => payload).put(route('factory-orders.update', props.order.id), options);
     } else {
-        form.transform(() => payload).post(route('factory-orders.store'));
+        form.transform(() => payload).post(route('factory-orders.store'), options);
     }
 };
 
 const destroyOrder = () => {
-    if (confirm('Bu sipariş silinsin mi?')) {
-        router.delete(route('factory-orders.destroy', props.order.id));
+    if (confirm('Bu fabrika siparişi silinsin mi?')) {
+        router.delete(route('factory-orders.destroy', props.order.id), {
+            preserveScroll: true,
+            onSuccess: () => {
+                if (props.modal) {
+                    emit('close');
+                }
+            },
+        });
     }
 };
 </script>
 
 <template>
-    <Head :title="isEdit ? 'Siparişi düzenle' : 'Yeni fabrika siparişi'" />
+    <div>
+        <Head v-if="!modal" :title="isEdit ? 'Fabrika siparişini düzenle' : 'Yeni fabrika siparişi'" />
 
-    <AuthenticatedLayout>
-        <template #header>
-            <div class="flex items-center justify-between gap-4">
-                <h2 class="text-xl font-semibold leading-tight text-gray-800">
-                    {{ isEdit ? 'Siparişi düzenle' : 'Yeni fabrika siparişi' }}
-                </h2>
-                <Link
-                    :href="route('factory-orders.index')"
-                    class="text-sm text-gray-600 hover:text-gray-900"
-                >
-                    Siparişlere dön
-                </Link>
-            </div>
-        </template>
+        <component
+            :is="modal ? 'div' : AuthenticatedLayout"
+            :class="modal ? 'max-h-[80vh] overflow-y-auto' : null"
+        >
+            <template v-if="!modal" #header>
+                <div class="flex items-center justify-between gap-4">
+                    <h2 class="text-xl font-semibold leading-tight text-gray-800">
+                        {{ isEdit ? 'Fabrika siparişini düzenle' : 'Yeni fabrika siparişi' }}
+                    </h2>
+                    <Link
+                        :href="route('factory-orders.index')"
+                        class="text-sm text-gray-600 hover:text-gray-900"
+                    >
+                        Fabrika siparişlerine dön
+                    </Link>
+                </div>
+            </template>
 
-        <div class="py-8">
-            <div class="mx-auto max-w-3xl sm:px-6 lg:px-8">
-                <form class="space-y-6 bg-white p-6 shadow-sm sm:rounded-lg" @submit.prevent="submit">
+            <div :class="modal ? 'space-y-6 p-6' : 'py-8'">
+                <div :class="modal ? '' : 'mx-auto max-w-3xl sm:px-6 lg:px-8'">
+                    <h2 v-if="modal" class="text-lg font-medium text-gray-900">
+                        {{ isEdit ? 'Fabrika siparişini düzenle' : 'Yeni fabrika siparişi' }}
+                    </h2>
+                    <form
+                        class="space-y-6"
+                        :class="modal ? 'mt-6' : 'bg-white p-6 shadow-sm sm:rounded-lg'"
+                        @submit.prevent="submit"
+                    >
                     <div>
                         <InputLabel for="product_search" value="Ürün ara" />
                         <TextInput
@@ -101,9 +160,9 @@ const destroyOrder = () => {
                             class="mt-1 block w-full"
                             placeholder="Ad veya stok kodu"
                         />
-                        <div v-if="products.length" class="mt-2 max-h-40 overflow-y-auto rounded-md border border-gray-200">
+                        <div v-if="productChoices.length" class="mt-2 max-h-40 overflow-y-auto rounded-md border border-gray-200">
                             <button
-                                v-for="product in products"
+                                v-for="product in productChoices"
                                 :key="product.id"
                                 type="button"
                                 class="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
@@ -178,20 +237,21 @@ const destroyOrder = () => {
                         <InputError class="mt-2" :message="form.errors.prepared_by_user_id" />
                     </div>
 
-                    <div class="flex items-center justify-between gap-3">
+                    <div class="flex items-center justify-end gap-3">
                         <button
                             v-if="isEdit"
                             type="button"
-                            class="text-sm text-red-600 hover:text-red-800"
+                            class="mr-auto text-sm text-red-600 hover:text-red-800"
                             @click="destroyOrder"
                         >
                             Sil
                         </button>
-                        <span v-else />
+                        <SecondaryButton v-if="modal" type="button" @click="emit('close')">İptal</SecondaryButton>
                         <PrimaryButton :disabled="form.processing">Kaydet</PrimaryButton>
                     </div>
-                </form>
+                    </form>
+                </div>
             </div>
-        </div>
-    </AuthenticatedLayout>
+        </component>
+    </div>
 </template>

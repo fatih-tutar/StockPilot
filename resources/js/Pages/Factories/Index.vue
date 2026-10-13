@@ -135,7 +135,7 @@ const labor = (value) => {
                                         :href="route('factory-orders.index', { factory_id: factory.id })"
                                         class="mr-3 text-indigo-600 hover:text-indigo-800"
                                     >
-                                        Siparişler
+                                        Fabrika siparişleri
                                     </Link>
                                     <Link
                                         :href="route('factories.edit', factory.id)"

@@ -223,7 +223,7 @@ const send = (form, routeName) => {
                 class="rounded-md bg-sky-700 px-3 py-1 text-xs font-semibold text-white"
                 @click="toggle('order')"
             >
-                Sipariş
+                Fabrika siparişi
             </button>
             <button
                 v-if="actions.includes('shipment_button')"
@@ -231,7 +231,7 @@ const send = (form, routeName) => {
                 class="rounded-md bg-gray-800 px-3 py-1 text-xs font-semibold text-white"
                 @click="toggle('ship')"
             >
-                Sevkiyat
+                Müşteri siparişi
             </button>
             <Link
                 v-if="actions.includes('edit_button')"
@@ -307,7 +307,7 @@ const send = (form, routeName) => {
             @submit.prevent="send(orderForm, 'products.order')"
         >
             <div v-if="modal">
-                <h2 class="text-lg font-medium text-gray-900">Sipariş</h2>
+                <h2 class="text-lg font-medium text-gray-900">Fabrika siparişi</h2>
                 <p class="mt-1 text-sm text-gray-500">{{ product.name }}</p>
             </div>
             <div :class="modal ? 'mt-6 grid gap-4 md:grid-cols-2' : 'contents'">
@@ -350,7 +350,7 @@ const send = (form, routeName) => {
             </div>
             <div :class="modal ? 'mt-6 flex justify-end gap-3' : 'flex items-end'">
                 <SecondaryButton v-if="modal" type="button" @click="dismiss">İptal</SecondaryButton>
-                <PrimaryButton :disabled="orderForm.processing">Siparişe ekle</PrimaryButton>
+                <PrimaryButton :disabled="orderForm.processing">Fabrika siparişine ekle</PrimaryButton>
             </div>
         </form>
 
@@ -360,7 +360,7 @@ const send = (form, routeName) => {
             @submit.prevent="send(shipForm, 'products.ship')"
         >
             <div v-if="modal">
-                <h2 class="text-lg font-medium text-gray-900">Sevkiyat</h2>
+                <h2 class="text-lg font-medium text-gray-900">Müşteri siparişi</h2>
                 <p class="mt-1 text-sm text-gray-500">{{ product.name }}</p>
             </div>
             <div :class="modal ? 'mt-6 grid gap-4 md:grid-cols-2' : 'contents'">
@@ -440,14 +440,14 @@ const send = (form, routeName) => {
                 <TextInput
                     v-model="shipForm.notes"
                     class="mt-1 block w-full"
-                    placeholder="Sevkiyat ile ilgili açıklama yazabilirsiniz."
+                    placeholder="Müşteri siparişi ile ilgili açıklama yazabilirsiniz."
                 />
                 <InputError class="mt-1" :message="shipForm.errors.notes" />
             </div>
             </div>
             <div :class="modal ? 'mt-6 flex justify-end gap-3' : 'flex items-end'">
                 <SecondaryButton v-if="modal" type="button" @click="dismiss">İptal</SecondaryButton>
-                <PrimaryButton :disabled="shipForm.processing || chosenShipClient === ''">Sevkiyata ekle</PrimaryButton>
+                <PrimaryButton :disabled="shipForm.processing || chosenShipClient === ''">Müşteri siparişine ekle</PrimaryButton>
             </div>
         </form>
     </div>

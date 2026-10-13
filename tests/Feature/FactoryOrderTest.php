@@ -47,6 +47,22 @@ class FactoryOrderTest extends TestCase
         $this->actingAs($user)
             ->get(route('factory-orders.index'))
             ->assertForbidden();
+
+        $this->actingAs($user)
+            ->getJson(route('factory-orders.form-data'))
+            ->assertForbidden();
+    }
+
+    public function test_form_data_lists_factories_for_a_new_order(): void
+    {
+        $user = $this->manager();
+        Factory::factory()->create(['name' => 'Deneme Fabrika']);
+
+        $this->actingAs($user)
+            ->getJson(route('factory-orders.form-data'))
+            ->assertOk()
+            ->assertJsonPath('order', null)
+            ->assertJsonPath('factories.0.name', 'Deneme Fabrika');
     }
 
     public function test_store_uses_the_session_company_and_the_current_user(): void
