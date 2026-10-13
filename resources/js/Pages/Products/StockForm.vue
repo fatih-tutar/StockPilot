@@ -21,24 +21,6 @@ const form = useForm({
     quantity_pallet: '',
 });
 
-const current = computed(() => {
-    const parts = [];
-
-    if (columns.value.piece) {
-        parts.push(`Adet ${props.product.quantity_piece ?? 0}`);
-    }
-
-    if (columns.value.alkop) {
-        parts.push(`Depo adet ${props.product.warehouse_quantity ?? 0}`);
-    }
-
-    if (columns.value.pallet) {
-        parts.push(`Palet ${props.product.quantity_pallet ?? 0}`);
-    }
-
-    return parts.join(' · ');
-});
-
 const nothingEntered = computed(() => {
     const piece = !columns.value.piece || form.quantity_piece === '';
     const warehouse = !columns.value.alkop || form.warehouse_quantity === '';
@@ -64,43 +46,51 @@ const submit = () => {
         <h2 class="text-lg font-medium text-gray-900">Stok güncelle</h2>
         <p class="mt-1 text-sm text-gray-500">{{ product.name }}</p>
 
-        <p class="mt-6 text-sm text-gray-700">
-            Mevcut: <span class="font-medium text-gray-900">{{ current }}</span>
-        </p>
-
-        <div class="mt-4 grid gap-4 md:grid-cols-3">
-            <div v-if="columns.piece">
-                <InputLabel value="Yeni adet" />
+        <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div v-if="columns.piece" class="flex flex-col gap-2">
+                <InputLabel value="Adet" />
+                <p class="text-sm text-gray-500">
+                    Mevcut
+                    <span class="font-medium text-gray-900">{{ product.quantity_piece ?? 0 }}</span>
+                </p>
                 <TextInput
                     v-model="form.quantity_piece"
                     type="number"
                     min="0"
-                    class="mt-1 block w-full"
-                    placeholder="Değiştirme"
+                    class="block w-full"
+                    placeholder="Yeni adet"
                 />
-                <InputError class="mt-1" :message="form.errors.quantity_piece" />
+                <InputError :message="form.errors.quantity_piece" />
             </div>
-            <div v-if="columns.alkop">
-                <InputLabel value="Yeni depo adet" />
+            <div v-if="columns.alkop" class="flex flex-col gap-2">
+                <InputLabel value="Depo adet" />
+                <p class="text-sm text-gray-500">
+                    Mevcut
+                    <span class="font-medium text-gray-900">{{ product.warehouse_quantity ?? 0 }}</span>
+                </p>
                 <TextInput
                     v-model="form.warehouse_quantity"
                     type="number"
                     min="0"
-                    class="mt-1 block w-full"
-                    placeholder="Değiştirme"
+                    class="block w-full"
+                    placeholder="Yeni depo adet"
                 />
-                <InputError class="mt-1" :message="form.errors.warehouse_quantity" />
+                <InputError :message="form.errors.warehouse_quantity" />
             </div>
-            <div v-if="columns.pallet">
-                <InputLabel value="Yeni palet" />
+            <div v-if="columns.pallet" class="flex flex-col gap-2">
+                <InputLabel value="Palet" />
+                <p class="text-sm text-gray-500">
+                    Mevcut
+                    <span class="font-medium text-gray-900">{{ product.quantity_pallet ?? 0 }}</span>
+                </p>
                 <TextInput
                     v-model="form.quantity_pallet"
                     type="number"
                     min="0"
-                    class="mt-1 block w-full"
-                    placeholder="Değiştirme"
+                    class="block w-full"
+                    placeholder="Yeni palet"
                 />
-                <InputError class="mt-1" :message="form.errors.quantity_pallet" />
+                <InputError :message="form.errors.quantity_pallet" />
             </div>
         </div>
 
