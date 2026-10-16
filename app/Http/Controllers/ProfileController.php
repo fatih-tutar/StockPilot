@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Enums\StaffDocument;
+use App\Http\Requests\Profile\UpdateQuickAccessRequest;
 use App\Http\Requests\ProfileUpdateRequest;
 use App\Models\Media;
 use App\Models\User;
+use App\Support\QuickAccess;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -44,7 +46,25 @@ class ProfileController extends Controller
                         $document->value => $this->documentPayload($user, $document),
                     ]),
             ],
+            'quickAccessOptions' => QuickAccess::optionsFor($user),
+            'quickAccessSelected' => $user->quick_access ?? [],
+            'quickAccessMax' => QuickAccess::MAX_ITEMS,
         ]);
+    }
+
+    public function updateQuickAccess(UpdateQuickAccessRequest $request): RedirectResponse
+    {
+        $keys = array_values(array_unique($request->validated('quick_access')));
+        $allowed = collect(QuickAccess::optionsFor($request->user()))
+            ->flatMap(fn (array $group) => $group['items'])
+            ->pluck('key')
+            ->all();
+
+        $request->user()->forceFill([
+            'quick_access' => array_values(array_intersect($keys, $allowed)),
+        ])->save();
+
+        return Redirect::route('profile.edit')->with('success', 'Hızlı erişim güncellendi.');
     }
 
     /**

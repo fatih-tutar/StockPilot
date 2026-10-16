@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Support\AccessRoles;
+use App\Support\QuickAccess;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -42,8 +43,10 @@ class HandleInertiaRequests extends Middleware
                     'roles' => $user->getRoleNames()->values(),
                     'permissions' => $user->getAllPermissions()->pluck('name')->values(),
                     'columns' => AccessRoles::visibleColumns($user),
+                    'quick_access' => $user->quick_access ?? [],
                 ] : null,
             ],
+            'quickAccess' => $user ? QuickAccess::linksFor($user) : [],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),

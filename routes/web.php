@@ -43,6 +43,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('profile.documents.download');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::patch('/profile/quick-access', [ProfileController::class, 'updateQuickAccess'])
+        ->name('profile.quick-access');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     Route::resource('categories', CategoryController::class)->only([

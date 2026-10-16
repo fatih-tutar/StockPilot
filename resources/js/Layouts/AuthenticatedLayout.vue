@@ -5,11 +5,13 @@ import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
 import NavLink from '@/Components/NavLink.vue';
 import NavMenu from '@/Components/NavMenu.vue';
+import QuickAccessIcon from '@/Components/QuickAccessIcon.vue';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink.vue';
 import { Link, usePage } from '@inertiajs/vue3';
 
 const showingNavigationDropdown = ref(false);
 const page = usePage();
+const quickAccess = computed(() => page.props.quickAccess || []);
 
 watch(
     () => page.url,
@@ -218,8 +220,25 @@ const menus = computed(() => {
                             </div>
                         </div>
 
-                        <div class="hidden shrink-0 xl:ms-2 xl:flex xl:items-center">
-                            <div class="relative ms-3">
+                        <div class="hidden shrink-0 items-center gap-1 xl:ms-2 xl:flex">
+                            <div
+                                v-if="quickAccess.length > 0"
+                                class="me-2 flex items-center gap-0.5 border-r border-gray-200 pe-3"
+                            >
+                                <Link
+                                    v-for="item in quickAccess"
+                                    :key="item.key"
+                                    :href="item.href"
+                                    :title="item.label"
+                                    class="inline-flex h-9 w-9 items-center justify-center rounded-md text-gray-500 transition hover:bg-gray-100 hover:text-gray-800"
+                                    :class="item.active ? 'bg-gray-100 text-gray-900' : ''"
+                                >
+                                    <span class="sr-only">{{ item.label }}</span>
+                                    <QuickAccessIcon :name="item.key" />
+                                </Link>
+                            </div>
+
+                            <div class="relative">
                                 <Dropdown align="right" width="48">
                                     <template #trigger>
                                         <span class="inline-flex rounded-md">
@@ -359,9 +378,27 @@ const menus = computed(() => {
                 </div>
             </header>
 
-            <main>
+            <main :class="quickAccess.length > 0 ? 'pb-20 xl:pb-0' : ''">
                 <slot />
             </main>
+
+            <nav
+                v-if="quickAccess.length > 0"
+                class="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white print:hidden xl:hidden"
+            >
+                <div class="mx-auto flex max-w-7xl items-stretch justify-around px-1">
+                    <Link
+                        v-for="item in quickAccess"
+                        :key="item.key"
+                        :href="item.href"
+                        class="flex min-w-0 flex-1 flex-col items-center gap-1 px-1 py-2 text-[11px] font-medium"
+                        :class="item.active ? 'text-indigo-600' : 'text-gray-500'"
+                    >
+                        <QuickAccessIcon :name="item.key" />
+                        <span class="w-full truncate text-center">{{ item.label }}</span>
+                    </Link>
+                </div>
+            </nav>
         </div>
     </div>
 </template>

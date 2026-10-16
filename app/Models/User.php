@@ -29,6 +29,7 @@ use Spatie\Permission\Traits\HasRoles;
     'access_level',
     'in_office',
     'is_active',
+    'quick_access',
 ])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
@@ -63,6 +64,7 @@ class User extends Authenticatable
             'access_level' => UserAccessLevel::class,
             'in_office' => 'boolean',
             'is_active' => 'boolean',
+            'quick_access' => 'array',
         ];
     }
 }
