@@ -8,7 +8,7 @@ import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
 
 const props = defineProps({
     shipment: { type: Object, default: null },
@@ -65,7 +65,6 @@ let clientRequest = 0;
 const chosenProductNames = ref(initialItems.map((item) => item.product_name || ''));
 const productOptions = ref([]);
 const productOpenIndex = ref(null);
-const productMenu = ref({ top: 0, left: 0, width: 0 });
 let productTimer = null;
 let productRequest = 0;
 
@@ -114,23 +113,8 @@ const hideClientResults = () => {
     }, 150);
 };
 
-const placeProductMenu = (event) => {
-    const rect = event?.target?.getBoundingClientRect();
-
-    if (!rect) {
-        return;
-    }
-
-    productMenu.value = {
-        top: rect.bottom + 4,
-        left: rect.left,
-        width: Math.max(rect.width, 220),
-    };
-};
-
 const scheduleProductSearch = (index, event) => {
     window.clearTimeout(productTimer);
-    placeProductMenu(event);
 
     const item = form.items[index];
 
@@ -158,7 +142,6 @@ const scheduleProductSearch = (index, event) => {
 
         productOptions.value = data;
         productOpenIndex.value = index;
-        placeProductMenu(event);
     }, 200);
 };
 
@@ -174,10 +157,6 @@ const hideProductResults = () => {
     window.setTimeout(() => {
         productOpenIndex.value = null;
     }, 150);
-};
-
-const closeProductResults = () => {
-    productOpenIndex.value = null;
 };
 
 const addItem = () => {
@@ -252,16 +231,9 @@ const destroyShipment = () => {
     });
 };
 
-onMounted(() => {
-    window.addEventListener('scroll', closeProductResults, true);
-    window.addEventListener('resize', closeProductResults);
-});
-
 onUnmounted(() => {
     window.clearTimeout(clientTimer);
     window.clearTimeout(productTimer);
-    window.removeEventListener('scroll', closeProductResults, true);
-    window.removeEventListener('resize', closeProductResults);
 });
 </script>
 
@@ -271,7 +243,7 @@ onUnmounted(() => {
 
         <component
             :is="modal ? 'div' : AuthenticatedLayout"
-            :class="modal ? 'max-h-[80vh] overflow-y-auto' : null"
+            :class="modal ? 'max-h-[80vh] overflow-y-auto overflow-x-visible' : null"
         >
             <template v-if="!modal" #header>
                 <div class="flex items-center justify-between gap-4">
@@ -412,19 +384,19 @@ onUnmounted(() => {
 
                         <div class="space-y-3">
                             <div class="flex items-center justify-between">
-                                <h3 class="text-lg font-medium text-gray-900">Kalemler</h3>
+                                <h3 class="text-lg font-medium text-gray-900">Ürünler</h3>
                                 <button
                                     v-if="!readOnly"
                                     type="button"
                                     class="text-sm font-medium text-indigo-600 hover:text-indigo-800"
                                     @click="addItem"
                                 >
-                                    Kalem ekle
+                                    Ürün ekle
                                 </button>
                             </div>
                             <InputError class="mt-2" :message="form.errors.items" />
 
-                            <div class="overflow-x-auto">
+                            <div class="overflow-visible">
                                 <table class="min-w-full divide-y divide-gray-200 text-sm">
                                     <thead class="bg-gray-50">
                                         <tr>
@@ -449,7 +421,10 @@ onUnmounted(() => {
                                             v-for="(item, index) in form.items"
                                             :key="item.id || `new-${index}`"
                                         >
-                                            <td class="px-2 py-2 align-top">
+                                            <td
+                                                class="px-2 py-2 align-top"
+                                                :class="productOpenIndex === index ? 'relative z-20' : 'relative'"
+                                            >
                                                 <TextInput
                                                     v-model="item.product_name"
                                                     class="block w-full min-w-48"
@@ -460,6 +435,29 @@ onUnmounted(() => {
                                                     @focus="scheduleProductSearch(index, $event)"
                                                     @blur="hideProductResults"
                                                 />
+                                                <ul
+                                                    v-if="productOpenIndex === index && !readOnly"
+                                                    class="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg"
+                                                >
+                                                    <li
+                                                        v-if="productOptions.length === 0"
+                                                        class="px-3 py-2 text-sm text-gray-500"
+                                                    >
+                                                        Eşleşen kayıt bulunamadı.
+                                                    </li>
+                                                    <li
+                                                        v-for="product in productOptions"
+                                                        :key="product.id"
+                                                    >
+                                                        <button
+                                                            type="button"
+                                                            class="block w-full px-3 py-2 text-left text-sm text-gray-800 hover:bg-gray-100"
+                                                            @mousedown.prevent="pickProduct(index, product)"
+                                                        >
+                                                            {{ product.name }}
+                                                        </button>
+                                                    </li>
+                                                </ul>
                                                 <InputError
                                                     class="mt-1"
                                                     :message="form.errors[`items.${index}.product_id`]"
@@ -500,11 +498,11 @@ onUnmounted(() => {
                                             </td>
                                             <td
                                                 v-if="!readOnly"
-                                                class="px-2 py-2 align-top text-right"
+                                                class="px-2 py-2 align-middle text-right"
                                             >
                                                 <button
                                                     type="button"
-                                                    class="text-xs text-red-600 hover:text-red-800"
+                                                    class="text-sm text-red-600 hover:text-red-800"
                                                     @click="removeItem(index)"
                                                 >
                                                     Sil
@@ -536,31 +534,5 @@ onUnmounted(() => {
                 </div>
             </div>
         </component>
-
-        <Teleport to="body">
-            <ul
-                v-if="productOpenIndex !== null && !readOnly"
-                class="fixed z-50 max-h-48 overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg"
-                :style="{
-                    top: `${productMenu.top}px`,
-                    left: `${productMenu.left}px`,
-                    width: `${productMenu.width}px`,
-                }"
-                @mousedown.prevent
-            >
-                <li v-if="productOptions.length === 0" class="px-3 py-2 text-sm text-gray-500">
-                    Eşleşen kayıt bulunamadı.
-                </li>
-                <li v-for="product in productOptions" :key="product.id">
-                    <button
-                        type="button"
-                        class="block w-full px-3 py-2 text-left text-sm text-gray-800 hover:bg-gray-100"
-                        @mousedown.prevent="pickProduct(productOpenIndex, product)"
-                    >
-                        {{ product.name }}
-                    </button>
-                </li>
-            </ul>
-        </Teleport>
     </div>
 </template>
