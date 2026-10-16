@@ -14,8 +14,8 @@ const position = ref({ top: 0, left: 0 });
 
 const menuItems = [
     { name: 'stock', label: 'Stok güncelle', stock: true },
-    { name: 'offer', label: 'Teklif', action: 'offer_button' },
     { name: 'order', label: 'Fabrika siparişi', action: 'order_button' },
+    { name: 'offer', label: 'Teklif', action: 'offer_button' },
     { name: 'ship', label: 'Müşteri siparişi', action: 'shipment_button' },
     { name: 'edit', label: 'Düzenle' },
     { name: 'activity', label: 'Son hareketler' },
