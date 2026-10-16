@@ -68,12 +68,6 @@ const menus = computed(() => {
             label: 'Satış',
             items: [
                 {
-                    label: 'Müşteriler',
-                    href: route('clients.index'),
-                    active: route().current('clients.*'),
-                    visible: allowed('clients.view', 'clients.manage'),
-                },
-                {
                     label: 'Teklifler',
                     href: route('quotes.index'),
                     active: route().current('quotes.*'),
@@ -84,6 +78,12 @@ const menus = computed(() => {
                     href: route('offer-lists.index'),
                     active: route().current('offer-lists.*'),
                     visible: allowed('quotes.view', 'quotes.manage'),
+                },
+                {
+                    label: 'Müşteriler',
+                    href: route('clients.index'),
+                    active: route().current('clients.*'),
+                    visible: allowed('clients.view', 'clients.manage'),
                 },
                 {
                     label: 'Müşteri siparişleri',
@@ -148,21 +148,9 @@ const menus = computed(() => {
             label: 'Ofis',
             items: [
                 {
-                    label: 'İşler',
-                    href: route('work-tasks.index'),
-                    active: route().current('work-tasks.*'),
-                    visible: allowed('work_tasks.view', 'work_tasks.manage'),
-                },
-                {
                     label: 'Personel',
                     href: route('staff.index'),
                     active: route().current('staff.*'),
-                    visible: allowed('users.manage'),
-                },
-                {
-                    label: 'Roller',
-                    href: route('roles.index'),
-                    active: route().current('roles.*'),
                     visible: allowed('users.manage'),
                 },
                 {
@@ -172,10 +160,22 @@ const menus = computed(() => {
                     visible: allowed('leaves.view', 'leaves.manage'),
                 },
                 {
+                    label: 'Roller',
+                    href: route('roles.index'),
+                    active: route().current('roles.*'),
+                    visible: allowed('users.manage'),
+                },
+                {
                     label: 'Organizasyon',
                     href: route('organization.index'),
                     active: route().current('organization.*'),
                     visible: allowed('organizations.view', 'organizations.manage'),
+                },
+                {
+                    label: 'İşler',
+                    href: route('work-tasks.index'),
+                    active: route().current('work-tasks.*'),
+                    visible: allowed('work_tasks.view', 'work_tasks.manage'),
                 },
             ],
         },
