@@ -41,7 +41,7 @@ class QuickAccess
             ],
             [
                 'key' => 'count-reports',
-                'label' => 'Sayım raporu',
+                'label' => 'Sayım Raporu',
                 'group' => 'Stok',
                 'route' => 'count-reports.index',
                 'permissions' => ['count_reports.view'],
@@ -65,7 +65,7 @@ class QuickAccess
             ],
             [
                 'key' => 'catalog-items',
-                'label' => 'Fiyat listesi',
+                'label' => 'Fiyat Listesi',
                 'group' => 'Stok',
                 'route' => 'catalog-items.index',
                 'permissions' => ['catalog.view', 'catalog.manage'],
@@ -81,7 +81,7 @@ class QuickAccess
             ],
             [
                 'key' => 'offer-lists',
-                'label' => 'Teklif listesi',
+                'label' => 'Teklif Listesi',
                 'group' => 'Satış',
                 'route' => 'offer-lists.index',
                 'permissions' => ['quotes.view', 'quotes.manage'],
@@ -97,7 +97,7 @@ class QuickAccess
             ],
             [
                 'key' => 'shipments',
-                'label' => 'Müşteri siparişleri',
+                'label' => 'Müşteri Siparişleri',
                 'group' => 'Satış',
                 'route' => 'shipments.index',
                 'permissions' => ['shipments.view', 'shipments.manage'],
@@ -105,7 +105,7 @@ class QuickAccess
             ],
             [
                 'key' => 'custom-orders',
-                'label' => 'Özel siparişler',
+                'label' => 'Özel Siparişler',
                 'group' => 'Satış',
                 'route' => 'custom-orders.index',
                 'permissions' => ['custom_orders.view', 'custom_orders.manage'],
@@ -129,7 +129,7 @@ class QuickAccess
             ],
             [
                 'key' => 'factory-orders',
-                'label' => 'Fabrika siparişleri',
+                'label' => 'Fabrika Siparişleri',
                 'group' => 'Fabrika',
                 'route' => 'factory-orders.index',
                 'permissions' => ['factory_orders.view', 'factory_orders.manage'],
@@ -145,7 +145,7 @@ class QuickAccess
             ],
             [
                 'key' => 'goods-flows',
-                'label' => 'Gelen giden',
+                'label' => 'Gelen Giden',
                 'group' => 'Günlük',
                 'route' => 'goods-flows.index',
                 'permissions' => ['goods_flows.view', 'goods_flows.manage'],
