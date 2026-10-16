@@ -15,7 +15,6 @@ class ShipmentItem extends Model
     protected $fillable = [
         'shipment_id',
         'product_id',
-        'description',
         'quantity_piece',
         'quantity_pallet',
         'unit_price',

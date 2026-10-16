@@ -63,26 +63,25 @@ class ShipmentTest extends TestCase
     {
         $user = $this->userWithShipmentsPermission();
         $client = Client::factory()->create();
-        $product = Product::factory()->create();
+        $product = Product::factory()->create(['name' => '20x20 beyaz']);
+        $vehicle = Vehicle::factory()->create([
+            'name' => 'Sevk Aracı',
+            'license_plate' => '34 SP 10',
+            'driver_name' => 'Test Şoför',
+        ]);
 
         $response = $this->actingAs($user)
             ->from(route('shipments.index'))
             ->post(route('shipments.store'), [
                 'client_id' => $client->id,
-                'quote_id' => null,
-                'status' => ShipmentStatus::Scheduled->value,
-                'ship_date' => now()->toDateString(),
-                'delivery_date' => now()->addDay()->toDateString(),
-                'vehicle_plate' => '34 SP 10',
-                'driver_name' => 'Test Şoför',
-                'shipping_address' => 'Istanbul',
-                'notes' => null,
+                'ship_type' => 'Tarafımızca sevk',
+                'vehicle_id' => $vehicle->id,
+                'notes' => 'Kapı önü',
                 'items' => [
                     [
                         'product_id' => $product->id,
-                        'description' => $product->name,
                         'quantity_piece' => 12,
-                        'quantity_pallet' => 1,
+                        'unit_price' => 25.5,
                     ],
                 ],
             ]);
@@ -92,9 +91,15 @@ class ShipmentTest extends TestCase
         $this->assertNotNull($shipment);
         $response->assertRedirect(route('shipments.index'));
         $this->assertSame(ShipmentStatus::Scheduled, $shipment->status);
-        $this->assertSame('34 SP 10', $shipment->vehicle_plate);
+        $this->assertSame('Tarafımızca sevk', $shipment->ship_type->value);
+        $this->assertSame($vehicle->id, $shipment->vehicle_id);
+        $this->assertNull($shipment->vehicle_plate);
+        $this->assertNull($shipment->driver_name);
+        $this->assertSame('Kapı önü', $shipment->notes);
         $this->assertCount(1, $shipment->items);
         $this->assertSame(12, $shipment->items->first()->quantity_piece);
+        $this->assertSame($product->id, $shipment->items->first()->product_id);
+        $this->assertSame('25.50', $shipment->items->first()->unit_price);
         $response->assertSessionHas('success', 'Müşteri siparişi oluşturuldu.');
     }
 
@@ -109,18 +114,16 @@ class ShipmentTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_create_form_data_lists_clients_quotes_and_products(): void
+    public function test_create_form_data_lists_vehicles_and_ship_types(): void
     {
         $user = $this->userWithShipmentsPermission();
-        Client::factory()->create(['name' => 'Deneme Firma']);
-        Product::factory()->create(['name' => 'Deneme Profil']);
+        Vehicle::factory()->create(['name' => 'Deneme Araç']);
 
         $this->actingAs($user)
             ->getJson(route('shipments.create-data'))
             ->assertOk()
-            ->assertJsonPath('clients.0.name', 'Deneme Firma')
-            ->assertJsonPath('products.0.name', 'Deneme Profil')
-            ->assertJsonStructure(['clients', 'quotes', 'products', 'statusOptions']);
+            ->assertJsonPath('vehicles.0.name', 'Deneme Araç')
+            ->assertJsonStructure(['vehicles', 'shipTypeOptions']);
     }
 
     public function test_shipment_editor_is_available_to_viewers(): void
@@ -137,7 +140,8 @@ class ShipmentTest extends TestCase
             ->getJson(route('shipments.editor', $shipment))
             ->assertOk()
             ->assertJsonPath('shipment.number', 'S-2026-0100')
-            ->assertJsonStructure(['clients', 'products', 'statusOptions']);
+            ->assertJsonStructure(['shipment', 'vehicles', 'shipTypeOptions'])
+            ->assertJsonPath('shipment.client_name', $shipment->client->name);
     }
 
     public function test_shipment_editor_requires_view_permission(): void
@@ -192,17 +196,18 @@ class ShipmentTest extends TestCase
         $this->assertSame($user->id, $open->user_id);
         $this->assertSame($company->id, $open->company_id);
         $this->assertSame(ShipmentStatus::Scheduled, $open->status);
-        $this->assertSame('34 SP 10', $open->vehicle_plate);
-        $this->assertSame('Deneme Şoför', $open->driver_name);
+        $this->assertSame($vehicle->id, $open->vehicle_id);
+        $this->assertSame('Tarafımızca sevk', $open->ship_type?->value);
         $this->assertSame('2021-01-01', $open->ship_date->toDateString());
-        $this->assertStringContainsString('Tarafımızca sevk', (string) $open->notes);
+        $this->assertStringContainsString('Kapı önü', (string) $open->notes);
         $this->assertStringContainsString('Manuel kayıt', (string) $open->notes);
         $this->assertCount(2, $open->items);
         $this->assertSame($product->id, $open->items[0]->product_id);
         $this->assertSame(6, $open->items[0]->quantity_piece);
-        $this->assertSame('Profil 40 · 10 TL', $open->items[0]->description);
+        $this->assertSame('10.00', $open->items[0]->unit_price);
         $this->assertNull($open->items[1]->product_id);
         $this->assertSame(2, $open->items[1]->quantity_piece);
+        $this->assertSame('12.00', $open->items[1]->unit_price);
 
         $removed = Shipment::withTrashed()->find(31);
         $this->assertNotNull($removed);
@@ -214,7 +219,7 @@ class ShipmentTest extends TestCase
         $this->assertNotNull($archived);
         $this->assertSame(ShipmentStatus::Delivered, $archived->status);
         $this->assertSame($user->id, $archived->user_id);
-        $this->assertStringContainsString('Kargo teslim', (string) $archived->notes);
+        $this->assertSame('Kargo Teslim', $archived->ship_type?->value);
         $this->assertSame(3, Shipment::withTrashed()->count());
     }
 }

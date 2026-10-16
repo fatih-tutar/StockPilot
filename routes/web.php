@@ -49,6 +49,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         'index', 'store', 'update', 'destroy',
     ]);
 
+    Route::get('products/search', [ProductController::class, 'search'])->name('products.search');
     Route::get('products/{product}/editor', [ProductController::class, 'editor'])->name('products.editor');
     Route::get('products/{product}/activities', [ProductController::class, 'activities'])->name('products.activities');
     Route::resource('products', ProductController::class)->except(['show']);

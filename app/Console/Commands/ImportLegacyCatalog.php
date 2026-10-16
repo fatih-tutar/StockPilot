@@ -10,6 +10,7 @@ use App\Enums\MoldDocument;
 use App\Enums\OfferListStatus;
 use App\Enums\QuoteStatus;
 use App\Enums\ShipmentStatus;
+use App\Enums\ShipmentType;
 use App\Enums\StaffDocument;
 use App\Enums\UserAccessLevel;
 use App\Enums\VehicleDocument;
@@ -2265,15 +2266,15 @@ class ImportLegacyCatalog extends Command
         $clientIds = DB::table('clients')->pluck('id')->flip();
         $productNames = DB::table('products')->pluck('name', 'id');
         $companyIds = DB::table('companies')->pluck('id')->flip();
-        $vehicles = DB::table('vehicles')->get(['id', 'license_plate', 'driver_name'])->keyBy('id');
+        $vehicleIds = DB::table('vehicles')->pluck('id')->flip();
         $existingIds = DB::table('shipments')->pluck('id')->flip();
         $existingNumbers = DB::table('shipments')->pluck('number')->flip();
-        $deliveryLabels = [
-            '0' => 'Müşteri Çağlayan',
-            '1' => 'Müşteri Alkop',
-            '2' => 'Tarafımızca sevk',
-            '3' => 'Ambara tarafımızca sevk',
-            '4' => 'Kargo teslim',
+        $shipTypes = [
+            '0' => ShipmentType::CustomerCaglayan->value,
+            '1' => ShipmentType::CustomerAlkop->value,
+            '2' => ShipmentType::OwnDelivery->value,
+            '3' => ShipmentType::WarehouseDelivery->value,
+            '4' => ShipmentType::Cargo->value,
         ];
         $shipments = 0;
         $items = 0;
@@ -2306,11 +2307,10 @@ class ImportLegacyCatalog extends Command
             $deleted = ($row['silik'] ?? '0') === '1';
             $recordedAt = $this->unixTimestamp($row['saniye'] ?? null) ?? $now;
             $companyId = (int) ($row['sirket_id'] ?? 0);
-            $vehicle = $vehicles->get((int) ($row['arac_id'] ?? 0));
-            $delivery = $deliveryLabels[$row['sevk_tipi'] ?? ''] ?? null;
+            $legacyVehicleId = (int) ($row['arac_id'] ?? 0);
+            $vehicleId = isset($vehicleIds[$legacyVehicleId]) ? $legacyVehicleId : null;
             $notes = array_values(array_filter([
                 $this->blankToNull($row['aciklama'] ?? null),
-                $delivery,
                 ($row['manuel'] ?? '0') === '1' ? 'Manuel kayıt' : null,
                 ($row['durum'] ?? '') === '1' ? 'Hazırlanıyor' : null,
                 $this->blankToNull($row['kilolar'] ?? null) !== null ? 'Kilo: '.trim((string) $row['kilolar']) : null,
@@ -2328,13 +2328,12 @@ class ImportLegacyCatalog extends Command
                 $productId = (int) $productValue;
                 $knownProduct = $productId > 0 && isset($productNames[$productId]);
                 $price = trim((string) ($prices[$sort] ?? ''));
-                $name = $knownProduct ? (string) $productNames[$productId] : ($productId > 0 ? 'Ürün '.$productId : 'Kalem');
                 $itemRows[] = [
                     'shipment_id' => $id,
                     'product_id' => $knownProduct ? $productId : null,
-                    'description' => $this->clip($price === '' ? $name : $name.' · '.$price.' TL'),
                     'quantity_piece' => $this->integer($quantities[$sort] ?? null),
                     'quantity_pallet' => 0,
+                    'unit_price' => $price === '' ? null : number_format((float) $price, 2, '.', ''),
                     'sort_order' => $sort,
                     'created_at' => $recordedAt,
                     'updated_at' => $recordedAt,
@@ -2346,14 +2345,16 @@ class ImportLegacyCatalog extends Command
                 'company_id' => isset($companyIds[$companyId]) ? $companyId : null,
                 'number' => $number,
                 'client_id' => $clientId,
+                'vehicle_id' => $vehicleId,
                 'quote_id' => null,
                 'user_id' => $ownerId,
                 'status' => $deleted ? ShipmentStatus::Cancelled->value : $status,
                 'ship_date' => $recordedAt->toDateString(),
                 'delivery_date' => null,
-                'vehicle_plate' => $vehicle?->license_plate,
-                'driver_name' => $vehicle?->driver_name,
+                'vehicle_plate' => null,
+                'driver_name' => null,
                 'shipping_address' => null,
+                'ship_type' => $shipTypes[$row['sevk_tipi'] ?? ''] ?? null,
                 'notes' => $notes === [] ? null : implode("\n", $notes),
                 'created_at' => $recordedAt,
                 'updated_at' => $recordedAt,

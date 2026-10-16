@@ -113,6 +113,42 @@ class ProductController extends Controller
         ]);
     }
 
+    public function search(Request $request): JsonResponse
+    {
+        abort_unless(
+            $request->user()->can('create', Quote::class)
+                || $request->user()->can('create', Shipment::class)
+                || $request->user()->can('create', FactoryOrder::class),
+            403,
+        );
+
+        $term = str_replace(['%', '_'], '', $request->string('term')->trim()->toString());
+
+        if ($term === '') {
+            return response()->json([]);
+        }
+
+        $like = '%'.$term.'%';
+        $products = Product::query()
+            ->where('is_active', true)
+            ->when(
+                DB::getDriverName() === 'pgsql',
+                fn ($query) => $query->where(function ($inner) use ($like) {
+                    $inner->where('name', 'ilike', $like)
+                        ->orWhere('sku', 'ilike', $like);
+                }),
+                fn ($query) => $query->where(function ($inner) use ($like) {
+                    $inner->where('name', 'like', $like)
+                        ->orWhere('sku', 'like', $like);
+                }),
+            )
+            ->orderBy('name')
+            ->limit(10)
+            ->get(['id', 'name', 'sku']);
+
+        return response()->json($products);
+    }
+
     public function store(StoreProductRequest $request): RedirectResponse
     {
         $data = $request->validated();
@@ -352,11 +388,7 @@ class ProductController extends Controller
             ]);
         }
 
-        $vehicle = isset($data['vehicle_id'])
-            ? Vehicle::query()->find($data['vehicle_id'])
-            : null;
-
-        DB::transaction(function () use ($request, $product, $client, $data, $vehicle): void {
+        DB::transaction(function () use ($request, $product, $client, $data): void {
             $shipment = Shipment::query()
                 ->where('client_id', $client->id)
                 ->where('status', ShipmentStatus::Scheduled)
@@ -367,19 +399,17 @@ class ProductController extends Controller
                 $shipment = Shipment::query()->create([
                     'number' => Shipment::nextNumber(),
                     'client_id' => $client->id,
+                    'vehicle_id' => $data['vehicle_id'] ?? null,
                     'user_id' => $request->user()->id,
                     'status' => ShipmentStatus::Scheduled,
                     'ship_date' => now()->toDateString(),
                     'ship_type' => $data['ship_type'],
-                    'vehicle_plate' => $vehicle?->license_plate,
-                    'driver_name' => $vehicle?->driver_name,
                     'notes' => $data['notes'] ?? null,
                 ]);
             }
 
             $shipment->items()->create([
                 'product_id' => $product->id,
-                'description' => $product->name,
                 'quantity_piece' => $data['quantity_piece'],
                 'quantity_pallet' => 0,
                 'unit_price' => $data['unit_price'],

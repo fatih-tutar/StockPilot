@@ -58,8 +58,9 @@ class ProductShipmentTest extends TestCase
         $this->assertNotNull($shipment);
         $this->assertSame(ShipmentStatus::Scheduled, $shipment->status);
         $this->assertSame(ShipmentType::OwnDelivery, $shipment->ship_type);
-        $this->assertSame('34 AB 123', $shipment->vehicle_plate);
-        $this->assertSame('Sürücü', $shipment->driver_name);
+        $this->assertSame($vehicle->id, $shipment->vehicle_id);
+        $this->assertNull($shipment->vehicle_plate);
+        $this->assertNull($shipment->driver_name);
         $this->assertSame('Kapıdan teslim', $shipment->notes);
 
         $item = ShipmentItem::query()->where('shipment_id', $shipment->id)->first();

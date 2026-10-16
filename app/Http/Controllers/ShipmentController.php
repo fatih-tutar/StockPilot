@@ -3,13 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Enums\ShipmentStatus;
+use App\Enums\ShipmentType;
 use App\Http\Requests\Shipments\StoreShipmentRequest;
 use App\Http\Requests\Shipments\UpdateShipmentRequest;
-use App\Models\Client;
-use App\Models\Product;
-use App\Models\Quote;
 use App\Models\Shipment;
 use App\Models\ShipmentItem;
+use App\Models\Vehicle;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -27,14 +26,16 @@ class ShipmentController extends Controller
         $status = $request->string('status')->trim()->toString();
 
         $shipments = Shipment::query()
-            ->with(['client:id,name', 'quote:id,number'])
+            ->with(['client:id,name', 'vehicle:id,name,license_plate', 'quote:id,number'])
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($inner) use ($search) {
                     $inner->where('number', 'like', "%{$search}%")
-                        ->orWhere('vehicle_plate', 'like', "%{$search}%")
-                        ->orWhere('driver_name', 'like', "%{$search}%")
                         ->orWhereHas('client', function ($clientQuery) use ($search) {
                             $clientQuery->where('name', 'like', "%{$search}%");
+                        })
+                        ->orWhereHas('vehicle', function ($vehicleQuery) use ($search) {
+                            $vehicleQuery->where('name', 'like', "%{$search}%")
+                                ->orWhere('license_plate', 'like', "%{$search}%");
                         });
                 });
             })
@@ -52,8 +53,11 @@ class ShipmentController extends Controller
                 'status_label' => $shipment->status->label(),
                 'ship_date' => $shipment->ship_date?->toDateString(),
                 'delivery_date' => $shipment->delivery_date?->toDateString(),
-                'vehicle_plate' => $shipment->vehicle_plate,
-                'driver_name' => $shipment->driver_name,
+                'vehicle' => $shipment->vehicle ? [
+                    'id' => $shipment->vehicle->id,
+                    'name' => $shipment->vehicle->name,
+                    'license_plate' => $shipment->vehicle->license_plate,
+                ] : null,
                 'client' => [
                     'id' => $shipment->client?->id,
                     'name' => $shipment->client?->name,
@@ -97,24 +101,19 @@ class ShipmentController extends Controller
     {
         $data = $request->validated();
 
-        $shipment = DB::transaction(function () use ($request, $data) {
+        DB::transaction(function () use ($request, $data): void {
             $shipment = Shipment::query()->create([
                 'number' => Shipment::nextNumber(),
                 'client_id' => $data['client_id'],
-                'quote_id' => $data['quote_id'] ?? null,
+                'vehicle_id' => $data['vehicle_id'] ?? null,
                 'user_id' => $request->user()->id,
-                'status' => $data['status'],
-                'ship_date' => $data['ship_date'],
-                'delivery_date' => $data['delivery_date'] ?? null,
-                'vehicle_plate' => $data['vehicle_plate'] ?? null,
-                'driver_name' => $data['driver_name'] ?? null,
-                'shipping_address' => $data['shipping_address'] ?? null,
+                'status' => ShipmentStatus::Scheduled,
+                'ship_date' => now()->toDateString(),
+                'ship_type' => $data['ship_type'],
                 'notes' => $data['notes'] ?? null,
             ]);
 
             $this->syncItems($shipment, $data['items']);
-
-            return $shipment;
         });
 
         return back()->with('success', 'Müşteri siparişi oluşturuldu.');
@@ -138,16 +137,11 @@ class ShipmentController extends Controller
     {
         $data = $request->validated();
 
-        DB::transaction(function () use ($shipment, $data) {
+        DB::transaction(function () use ($shipment, $data): void {
             $shipment->update([
                 'client_id' => $data['client_id'],
-                'quote_id' => $data['quote_id'] ?? null,
-                'status' => $data['status'],
-                'ship_date' => $data['ship_date'],
-                'delivery_date' => $data['delivery_date'] ?? null,
-                'vehicle_plate' => $data['vehicle_plate'] ?? null,
-                'driver_name' => $data['driver_name'] ?? null,
-                'shipping_address' => $data['shipping_address'] ?? null,
+                'vehicle_id' => $data['vehicle_id'] ?? null,
+                'ship_type' => $data['ship_type'],
                 'notes' => $data['notes'] ?? null,
             ]);
 
@@ -177,10 +171,10 @@ class ShipmentController extends Controller
 
         foreach (array_values($items) as $index => $item) {
             $payload = [
-                'product_id' => $item['product_id'] ?? null,
-                'description' => $item['description'],
+                'product_id' => isset($item['product_id']) ? (int) $item['product_id'] : null,
                 'quantity_piece' => (int) ($item['quantity_piece'] ?? 0),
-                'quantity_pallet' => (int) ($item['quantity_pallet'] ?? 0),
+                'quantity_pallet' => 0,
+                'unit_price' => $item['unit_price'] ?? null,
                 'sort_order' => $index,
             ];
 
@@ -206,106 +200,45 @@ class ShipmentController extends Controller
      */
     private function editorPayload(Request $request, Shipment $shipment): array
     {
-        $shipment->load(['items.product:id,name,sku', 'client:id,name', 'quote:id,number']);
+        $shipment->load(['items.product:id,name,sku', 'client:id,name']);
 
         return [
             'shipment' => [
                 'id' => $shipment->id,
                 'number' => $shipment->number,
                 'client_id' => $shipment->client_id,
-                'quote_id' => $shipment->quote_id,
-                'status' => $shipment->status->value,
-                'ship_date' => $shipment->ship_date?->toDateString(),
-                'delivery_date' => $shipment->delivery_date?->toDateString(),
-                'vehicle_plate' => $shipment->vehicle_plate,
-                'driver_name' => $shipment->driver_name,
-                'shipping_address' => $shipment->shipping_address,
+                'client_name' => $shipment->client?->name,
+                'ship_type' => $shipment->ship_type?->value,
+                'vehicle_id' => $shipment->vehicle_id,
                 'notes' => $shipment->notes,
                 'items' => $shipment->items->map(fn (ShipmentItem $item) => [
                     'id' => $item->id,
                     'product_id' => $item->product_id,
-                    'description' => $item->description,
+                    'product_name' => $item->product?->name,
                     'quantity_piece' => $item->quantity_piece,
-                    'quantity_pallet' => $item->quantity_pallet,
+                    'unit_price' => $item->unit_price,
                 ])->values(),
             ],
-            'clients' => $this->clientOptions(),
-            'quotes' => $this->quoteOptions($shipment->quote_id),
-            'products' => $this->productOptions(),
-            'statusOptions' => ShipmentStatus::options(),
+            ...$this->formOptions(),
             'canManage' => $request->user()->can('shipments.manage'),
         ];
     }
 
     /**
-     * @return array{clients: array<int, array{id: int, name: string}>, quotes: array<int, array{id: int, number: string, client_id: int}>, products: array<int, array{id: int, name: string, sku: string|null}>, statusOptions: array<int, array{value: string, label: string}>}
+     * @return array{vehicles: array<int, array{id: int, name: string}>, shipTypeOptions: array<int, array{value: string, label: string}>}
      */
     private function formOptions(): array
     {
         return [
-            'clients' => $this->clientOptions(),
-            'quotes' => $this->quoteOptions(),
-            'products' => $this->productOptions(),
-            'statusOptions' => ShipmentStatus::options(),
+            'vehicles' => Vehicle::query()
+                ->orderBy('name')
+                ->get(['id', 'name'])
+                ->map(fn (Vehicle $vehicle) => [
+                    'id' => $vehicle->id,
+                    'name' => $vehicle->name,
+                ])
+                ->all(),
+            'shipTypeOptions' => ShipmentType::options(),
         ];
-    }
-
-    /**
-     * @return array<int, array{id: int, name: string}>
-     */
-    private function clientOptions(): array
-    {
-        return Client::query()
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->get(['id', 'name'])
-            ->map(fn (Client $client) => [
-                'id' => $client->id,
-                'name' => $client->name,
-            ])
-            ->all();
-    }
-
-    /**
-     * @return array<int, array{id: int, number: string, client_id: int}>
-     */
-    private function quoteOptions(?int $includeQuoteId = null): array
-    {
-        return Quote::query()
-            ->when($includeQuoteId, function ($query) use ($includeQuoteId) {
-                $query->where(function ($inner) use ($includeQuoteId) {
-                    $inner->whereIn('status', ['draft', 'sent', 'accepted'])
-                        ->orWhereKey($includeQuoteId);
-                });
-            }, function ($query) {
-                $query->whereIn('status', ['draft', 'sent', 'accepted']);
-            })
-            ->orderByDesc('quote_date')
-            ->orderByDesc('id')
-            ->limit(100)
-            ->get(['id', 'number', 'client_id'])
-            ->map(fn (Quote $quote) => [
-                'id' => $quote->id,
-                'number' => $quote->number,
-                'client_id' => $quote->client_id,
-            ])
-            ->all();
-    }
-
-    /**
-     * @return array<int, array{id: int, name: string, sku: string|null}>
-     */
-    private function productOptions(): array
-    {
-        return Product::query()
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->get(['id', 'name', 'sku'])
-            ->map(fn (Product $product) => [
-                'id' => $product->id,
-                'name' => $product->name,
-                'sku' => $product->sku,
-            ])
-            ->all();
     }
 }

@@ -91,7 +91,7 @@ class DashboardController extends Controller
                 : [],
             'activeShipments' => $canViewShipments
                 ? Shipment::query()
-                    ->with('client:id,name')
+                    ->with(['client:id,name', 'vehicle:id,name,license_plate'])
                     ->whereIn('status', [ShipmentStatus::Scheduled, ShipmentStatus::InTransit])
                     ->orderBy('ship_date')
                     ->limit(8)
@@ -102,7 +102,7 @@ class DashboardController extends Controller
                         'status' => $shipment->status->value,
                         'status_label' => $shipment->status->label(),
                         'ship_date' => $shipment->ship_date?->toDateString(),
-                        'vehicle_plate' => $shipment->vehicle_plate,
+                        'vehicle_name' => $shipment->vehicle?->name,
                         'client_name' => $shipment->client?->name,
                     ])
                     ->values()

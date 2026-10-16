@@ -242,7 +242,7 @@ const movementTypeLabel = (type) => {
                                     </p>
                                 </div>
                                 <p class="text-sm text-gray-700">
-                                    {{ shipment.vehicle_plate || '—' }}
+                                    {{ shipment.vehicle_name || '—' }}
                                 </p>
                             </li>
                             <li

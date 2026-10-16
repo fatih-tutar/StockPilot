@@ -19,7 +19,6 @@ class ShipmentItemFactory extends Factory
         return [
             'shipment_id' => Shipment::factory(),
             'product_id' => Product::factory(),
-            'description' => fake()->words(3, true),
             'quantity_piece' => fake()->numberBetween(1, 50),
             'quantity_pallet' => fake()->numberBetween(0, 5),
             'sort_order' => 0,

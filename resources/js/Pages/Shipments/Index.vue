@@ -45,7 +45,7 @@ const openCreate = async () => {
     createOpen.value = true;
     createError.value = '';
 
-    if (createOptions.value?.clients && !createOptions.value.shipment) {
+    if (createOptions.value?.vehicles && !createOptions.value.shipment) {
         return;
     }
 
@@ -121,7 +121,7 @@ const closeCreate = () => {
                             id="search"
                             v-model="search"
                             class="mt-1 block w-full"
-                            placeholder="Sipariş no, müşteri, plaka"
+                            placeholder="Sipariş no, müşteri, araç"
                         />
                     </div>
                     <div>
@@ -175,13 +175,7 @@ const closeCreate = () => {
                                     {{ shipment.ship_date }}
                                 </td>
                                 <td class="px-4 py-3 text-gray-700">
-                                    <div>{{ shipment.vehicle_plate || '—' }}</div>
-                                    <div
-                                        v-if="shipment.driver_name"
-                                        class="text-xs text-gray-500"
-                                    >
-                                        {{ shipment.driver_name }}
-                                    </div>
+                                    {{ shipment.vehicle?.name || '—' }}
                                 </td>
                                 <td class="px-4 py-3">
                                     <span
@@ -230,16 +224,14 @@ const closeCreate = () => {
             </div>
         </div>
 
-        <Modal :show="createOpen" max-width="6xl" @close="closeCreate">
+        <Modal :show="createOpen" max-width="3xl" @close="closeCreate">
             <ShipmentForm
                 v-if="createOptions"
                 :key="editingShipment?.id || 'new'"
                 modal
                 :shipment="editingShipment"
-                :clients="createOptions.clients"
-                :quotes="createOptions.quotes"
-                :products="createOptions.products"
-                :status-options="createOptions.statusOptions"
+                :vehicles="createOptions.vehicles"
+                :ship-type-options="createOptions.shipTypeOptions"
                 :can-manage="canManage"
                 @close="closeCreate"
             />

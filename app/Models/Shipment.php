@@ -22,6 +22,7 @@ class Shipment extends Model
         'company_id',
         'number',
         'client_id',
+        'vehicle_id',
         'quote_id',
         'user_id',
         'status',
@@ -47,6 +48,11 @@ class Shipment extends Model
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);
+    }
+
+    public function vehicle(): BelongsTo
+    {
+        return $this->belongsTo(Vehicle::class);
     }
 
     public function quote(): BelongsTo
