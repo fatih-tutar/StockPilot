@@ -223,18 +223,18 @@ const menus = computed(() => {
                         <div class="hidden shrink-0 items-center gap-1 xl:ms-2 xl:flex">
                             <div
                                 v-if="quickAccess.length > 0"
-                                class="me-2 flex items-center gap-0.5 border-r border-gray-200 pe-3"
+                                class="me-2 flex items-center gap-1 border-r border-gray-200 pe-3"
                             >
                                 <Link
                                     v-for="item in quickAccess"
                                     :key="item.key"
                                     :href="item.href"
                                     :title="item.label"
-                                    class="inline-flex h-9 w-9 items-center justify-center rounded-md text-gray-500 transition hover:bg-gray-100 hover:text-gray-800"
+                                    class="inline-flex max-w-[4.5rem] flex-col items-center gap-0.5 rounded-md px-1.5 py-1 text-[10px] font-medium leading-tight text-gray-500 transition hover:bg-gray-100 hover:text-gray-800"
                                     :class="item.active ? 'bg-gray-100 text-gray-900' : ''"
                                 >
-                                    <span class="sr-only">{{ item.label }}</span>
                                     <QuickAccessIcon :name="item.key" />
+                                    <span class="w-full truncate text-center">{{ item.label }}</span>
                                 </Link>
                             </div>
 
