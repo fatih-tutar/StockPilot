@@ -403,4 +403,38 @@ class CatalogItemTest extends TestCase
                 ->has('groups', 1)
                 ->where('groups.0.product_code', 'LED-1'));
     }
+
+    public function test_legacy_import_prefers_the_company_with_most_users(): void
+    {
+        $other = Company::factory()->create();
+        $company = Company::factory()->create();
+        User::factory()->create(['company_id' => $other->id]);
+        User::factory()->count(2)->create(['company_id' => $company->id]);
+        CatalogItem::factory()->create([
+            'id' => 15,
+            'company_id' => $other->id,
+            'product_code' => 'LED-1',
+            'model' => 'Sıva üstü',
+        ]);
+
+        $directory = storage_path('framework/testing/catalog-preferred-company');
+        File::ensureDirectoryExists($directory);
+        File::put($directory.'/catalog.csv', implode("\n", [
+            'id,product,code,model,quantity,price,image_1,image_2,description,created_at,is_deleted,sort_order',
+            '15,LED-1,A1,Sıva üstü,6 METRE,120 TL,bir.jpg,iki.png,Koridor,1609459200,0,3',
+            '16,LED-2,B1,Sarkıt,adet,90 TL,bir.jpg,iki.png,Salon,1609459200,0,4',
+        ]));
+
+        try {
+            $this->artisan('stockpilot:import-legacy', [
+                'path' => $directory,
+                '--only' => 'catalog',
+            ])->assertSuccessful();
+        } finally {
+            File::deleteDirectory($directory);
+        }
+
+        $this->assertSame($company->id, CatalogItem::query()->find(15)?->company_id);
+        $this->assertSame($company->id, CatalogItem::query()->find(16)?->company_id);
+    }
 }

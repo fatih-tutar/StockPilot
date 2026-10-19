@@ -1163,8 +1163,7 @@ class ImportLegacyCatalog extends Command
     private function insertCatalogItems(array $rows): int
     {
         $existing = DB::table('catalog_items')->pluck('id')->map(fn ($id) => (int) $id)->flip();
-        $companyId = DB::table('companies')->orderBy('id')->value('id')
-            ?? DB::table('products')->whereNotNull('company_id')->value('company_id');
+        $companyId = $this->preferredCompanyId();
         $now = now();
         $pending = [];
         $files = [];
@@ -1219,11 +1218,14 @@ class ImportLegacyCatalog extends Command
 
         if ($companyId !== null) {
             $filled = DB::table('catalog_items')
-                ->whereNull('company_id')
+                ->where(function ($query) use ($companyId): void {
+                    $query->whereNull('company_id')
+                        ->orWhere('company_id', '!=', $companyId);
+                })
                 ->update(['company_id' => $companyId, 'updated_at' => $now]);
 
             if ($filled > 0) {
-                $this->info("Assigned company {$companyId} to {$filled} catalog rows that had no company.");
+                $this->info("Assigned company {$companyId} to {$filled} catalog rows.");
             }
         }
 
@@ -2926,6 +2928,36 @@ class ImportLegacyCatalog extends Command
         }
 
         return mb_substr($value, 0, $length);
+    }
+
+    private function preferredCompanyId(): ?int
+    {
+        $fromUsers = DB::table('users')
+            ->whereNotNull('company_id')
+            ->whereNull('deleted_at')
+            ->select('company_id')
+            ->groupBy('company_id')
+            ->orderByRaw('count(*) desc')
+            ->value('company_id');
+
+        if ($fromUsers !== null) {
+            return (int) $fromUsers;
+        }
+
+        $fromProducts = DB::table('products')
+            ->whereNotNull('company_id')
+            ->select('company_id')
+            ->groupBy('company_id')
+            ->orderByRaw('count(*) desc')
+            ->value('company_id');
+
+        if ($fromProducts !== null) {
+            return (int) $fromProducts;
+        }
+
+        $fromCompanies = DB::table('companies')->orderBy('id')->value('id');
+
+        return $fromCompanies !== null ? (int) $fromCompanies : null;
     }
 
     private function blankToNull(?string $value): ?string
