@@ -230,7 +230,7 @@ const movementTypeLabel = (type) => {
                             >
                                 <div>
                                     <Link
-                                        :href="route('shipments.index', { tab: shipment.status })"
+                                        :href="route('shipments.index')"
                                         class="font-medium text-gray-900 hover:text-indigo-700"
                                     >
                                         {{ shipment.client_name || 'Müşteri siparişi' }}

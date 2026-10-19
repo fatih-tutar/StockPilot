@@ -68,10 +68,14 @@ class ShipmentTest extends TestCase
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('Shipments/Index')
-                ->where('filters.tab', 'received')
-                ->has('shipments.data', 1)
-                ->where('shipments.data.0.client.name', 'Nova Build')
-                ->missing('shipments.data.0.number'));
+                ->has('columns', 3)
+                ->where('columns.0.status', 'received')
+                ->where('columns.1.status', 'preparing')
+                ->where('columns.2.status', 'invoiced')
+                ->has('columns.0.shipments', 1)
+                ->has('columns.1.shipments', 1)
+                ->where('columns.0.shipments.0.client.name', 'Nova Build')
+                ->missing('columns.0.shipments.0.number'));
     }
 
     public function test_shipment_can_be_created_with_items(): void
@@ -104,7 +108,7 @@ class ShipmentTest extends TestCase
         $shipment = Shipment::query()->first();
 
         $this->assertNotNull($shipment);
-        $response->assertRedirect(route('shipments.index', ['tab' => 'received']));
+        $response->assertRedirect(route('shipments.index'));
         $this->assertSame(ShipmentStatus::Received, $shipment->status);
         $this->assertFalse(isset($shipment->getAttributes()['number']));
         $this->assertSame('Tarafımızca sevk', $shipment->ship_type->value);
@@ -142,8 +146,9 @@ class ShipmentTest extends TestCase
         $this->assertSame($user->id, $shipment->invoiced_by);
 
         $this->actingAs($user)
+            ->from(route('shipments.index'))
             ->patch(route('shipments.status', $shipment), ['status' => 'archived'])
-            ->assertRedirect(route('shipments.index', ['tab' => 'invoiced']));
+            ->assertRedirect(route('shipments.index'));
 
         $this->assertSame(ShipmentStatus::Archived, $shipment->refresh()->status);
 

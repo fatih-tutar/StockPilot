@@ -11,6 +11,7 @@ use App\Models\Company;
 use App\Models\Shipment;
 use App\Models\ShipmentItem;
 use App\Models\Vehicle;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -25,16 +26,20 @@ class ShipmentController extends Controller
     {
         $this->authorize('viewAny', Shipment::class);
 
-        $tab = $this->resolveTab($request->string('tab')->toString());
         $search = $request->string('search')->trim()->toString();
 
         return Inertia::render('Shipments/Index', [
-            'shipments' => $this->shipmentPage($tab, $search),
+            'columns' => collect(ShipmentStatus::tabs())
+                ->map(fn (ShipmentStatus $status) => [
+                    'status' => $status->value,
+                    'label' => $status->label(),
+                    'shipments' => $this->shipmentList($status, $search),
+                ])
+                ->values()
+                ->all(),
             'filters' => [
-                'tab' => $tab->value,
                 'search' => $search,
             ],
-            'tabs' => ShipmentStatus::tabOptions(),
             'canManage' => $request->user()->can('shipments.manage'),
         ]);
     }
@@ -52,6 +57,19 @@ class ShipmentController extends Controller
             ],
             'canManage' => $request->user()->can('shipments.manage'),
         ]);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function shipmentList(ShipmentStatus $status, string $search): array
+    {
+        return $this->shipmentQuery($status, $search)
+            ->latest('ship_date')
+            ->latest('id')
+            ->get()
+            ->map(fn (Shipment $shipment) => $this->cardPayload($shipment))
+            ->all();
     }
 
     public function print(Request $request, Shipment $shipment): Response
@@ -115,7 +133,7 @@ class ShipmentController extends Controller
         });
 
         return redirect()
-            ->route('shipments.index', ['tab' => ShipmentStatus::Received->value])
+            ->route('shipments.index')
             ->with('success', 'Müşteri siparişi oluşturuldu.');
     }
 
@@ -177,12 +195,6 @@ class ShipmentController extends Controller
             default => 'Sipariş durumu güncellendi.',
         };
 
-        if ($target === ShipmentStatus::Archived) {
-            return redirect()
-                ->route('shipments.index', ['tab' => ShipmentStatus::Invoiced->value])
-                ->with('success', $message);
-        }
-
         return back()->with('success', $message);
     }
 
@@ -190,36 +202,38 @@ class ShipmentController extends Controller
     {
         $this->authorize('delete', $shipment);
 
-        $tab = $shipment->status === ShipmentStatus::Archived
-            ? null
-            : $shipment->status->value;
+        $fromArchive = $shipment->status === ShipmentStatus::Archived;
 
         $shipment->delete();
 
-        if ($tab === null) {
+        if ($fromArchive) {
             return redirect()
                 ->route('shipments.archive')
                 ->with('success', 'Müşteri siparişi silindi.');
         }
 
         return redirect()
-            ->route('shipments.index', ['tab' => $tab])
+            ->route('shipments.index')
             ->with('success', 'Müşteri siparişi silindi.');
-    }
-
-    private function resolveTab(string $tab): ShipmentStatus
-    {
-        $status = ShipmentStatus::tryFrom($tab);
-
-        return in_array($status, ShipmentStatus::tabs(), true)
-            ? $status
-            : ShipmentStatus::Received;
     }
 
     /**
      * @return LengthAwarePaginator<int, array<string, mixed>>
      */
     private function shipmentPage(ShipmentStatus $status, string $search)
+    {
+        return $this->shipmentQuery($status, $search)
+            ->latest('ship_date')
+            ->latest('id')
+            ->paginate(24)
+            ->withQueryString()
+            ->through(fn (Shipment $shipment) => $this->cardPayload($shipment));
+    }
+
+    /**
+     * @return Builder<Shipment>
+     */
+    private function shipmentQuery(ShipmentStatus $status, string $search)
     {
         return Shipment::query()
             ->with([
@@ -242,12 +256,7 @@ class ShipmentController extends Controller
                         $productQuery->where('name', 'like', "%{$search}%");
                     });
                 });
-            })
-            ->latest('ship_date')
-            ->latest('id')
-            ->paginate(24)
-            ->withQueryString()
-            ->through(fn (Shipment $shipment) => $this->cardPayload($shipment));
+            });
     }
 
     /**
