@@ -138,6 +138,66 @@ const movementTypeLabel = (type) => {
 
                 <div class="grid gap-4 lg:grid-cols-2">
                     <section
+                        v-if="can.shipments"
+                        class="overflow-hidden bg-white shadow-sm sm:rounded-lg lg:col-span-2"
+                    >
+                        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-2.5">
+                            <h3 class="font-medium text-gray-900">Müşteri siparişleri</h3>
+                            <div class="flex items-center gap-3 text-sm">
+                                <Link
+                                    :href="route('shipments.archive')"
+                                    class="text-indigo-600 hover:text-indigo-800"
+                                >
+                                    Arşiv
+                                </Link>
+                                <Link
+                                    :href="route('shipments.index')"
+                                    class="text-indigo-600 hover:text-indigo-800"
+                                >
+                                    Tümü
+                                </Link>
+                            </div>
+                        </div>
+                        <div class="border-b border-gray-100 px-2">
+                            <nav class="-mb-px flex gap-1 overflow-x-auto" aria-label="Sipariş sekmeleri">
+                                <button
+                                    v-for="tab in shipmentTabs"
+                                    :key="tab.status"
+                                    type="button"
+                                    class="whitespace-nowrap border-b-2 px-3 py-2 text-xs font-medium transition sm:text-sm"
+                                    :class="
+                                        activeShipmentTab === tab.status
+                                            ? 'border-indigo-600 text-indigo-600'
+                                            : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                                    "
+                                    @click="activeShipmentTab = tab.status"
+                                >
+                                    {{ tab.label }}
+                                    <span class="ms-1 text-gray-400">({{ tab.shipments.length }})</span>
+                                </button>
+                            </nav>
+                        </div>
+                        <div class="max-h-56 overflow-y-auto p-3">
+                            <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                                <ShipmentOrderCard
+                                    v-for="shipment in activeShipmentColumn?.shipments || []"
+                                    :key="shipment.id"
+                                    compact
+                                    :shipment="shipment"
+                                    :can-manage="can.shipments_manage"
+                                    @action="(key) => runAction(shipment, key)"
+                                />
+                                <div
+                                    v-if="!(activeShipmentColumn?.shipments?.length)"
+                                    class="col-span-full rounded-md border border-dashed border-gray-300 px-4 py-6 text-center text-sm text-gray-500"
+                                >
+                                    Bu sekmede sipariş yok.
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section
                         v-if="can.stock"
                         class="overflow-hidden bg-white shadow-sm sm:rounded-lg"
                     >
@@ -229,66 +289,6 @@ const movementTypeLabel = (type) => {
                                 Açık teklif yok.
                             </li>
                         </ul>
-                    </section>
-
-                    <section
-                        v-if="can.shipments"
-                        class="overflow-hidden bg-white shadow-sm sm:rounded-lg lg:col-span-2"
-                    >
-                        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-2.5">
-                            <h3 class="font-medium text-gray-900">Müşteri siparişleri</h3>
-                            <div class="flex items-center gap-3 text-sm">
-                                <Link
-                                    :href="route('shipments.archive')"
-                                    class="text-indigo-600 hover:text-indigo-800"
-                                >
-                                    Arşiv
-                                </Link>
-                                <Link
-                                    :href="route('shipments.index')"
-                                    class="text-indigo-600 hover:text-indigo-800"
-                                >
-                                    Tümü
-                                </Link>
-                            </div>
-                        </div>
-                        <div class="border-b border-gray-100 px-2">
-                            <nav class="-mb-px flex gap-1 overflow-x-auto" aria-label="Sipariş sekmeleri">
-                                <button
-                                    v-for="tab in shipmentTabs"
-                                    :key="tab.status"
-                                    type="button"
-                                    class="whitespace-nowrap border-b-2 px-3 py-2 text-xs font-medium transition sm:text-sm"
-                                    :class="
-                                        activeShipmentTab === tab.status
-                                            ? 'border-indigo-600 text-indigo-600'
-                                            : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                                    "
-                                    @click="activeShipmentTab = tab.status"
-                                >
-                                    {{ tab.label }}
-                                    <span class="ms-1 text-gray-400">({{ tab.shipments.length }})</span>
-                                </button>
-                            </nav>
-                        </div>
-                        <div class="max-h-56 overflow-y-auto p-3">
-                            <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                                <ShipmentOrderCard
-                                    v-for="shipment in activeShipmentColumn?.shipments || []"
-                                    :key="shipment.id"
-                                    compact
-                                    :shipment="shipment"
-                                    :can-manage="can.shipments_manage"
-                                    @action="(key) => runAction(shipment, key)"
-                                />
-                                <div
-                                    v-if="!(activeShipmentColumn?.shipments?.length)"
-                                    class="col-span-full rounded-md border border-dashed border-gray-300 px-4 py-6 text-center text-sm text-gray-500"
-                                >
-                                    Bu sekmede sipariş yok.
-                                </div>
-                            </div>
-                        </div>
                     </section>
 
                     <section
