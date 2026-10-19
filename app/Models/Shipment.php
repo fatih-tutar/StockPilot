@@ -84,4 +84,47 @@ class Shipment extends Model
     {
         return $this->hasMany(ShipmentItem::class)->orderBy('sort_order')->orderBy('id');
     }
+
+    /**
+     * @return list<string>
+     */
+    public static function boardRelations(): array
+    {
+        return [
+            'client:id,name',
+            'vehicle:id,name',
+            'user:id,name',
+            'items.product:id,name,category_id',
+            'items.product.category:id,name,parent_id',
+            'items.product.category.parent:id,name',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toBoardCard(): array
+    {
+        return [
+            'id' => $this->id,
+            'status' => $this->status->value,
+            'ship_date' => $this->ship_date?->format('d.m.Y'),
+            'ship_type' => $this->ship_type?->label(),
+            'notes' => $this->notes,
+            'creator_name' => $this->user?->name,
+            'vehicle' => $this->vehicle?->name,
+            'client' => [
+                'id' => $this->client?->id,
+                'name' => $this->client?->name,
+            ],
+            'items' => $this->items->map(fn (ShipmentItem $item) => [
+                'id' => $item->id,
+                'product_name' => $item->product?->name,
+                'kind' => $item->product?->category?->parent?->name
+                    ?? $item->product?->category?->name,
+                'quantity_piece' => $item->quantity_piece,
+                'unit_price' => $item->unit_price,
+            ])->values(),
+        ];
+    }
 }

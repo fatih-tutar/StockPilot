@@ -89,6 +89,8 @@ class DashboardTest extends TestCase
                 ->where('shipmentTabs.2.status', 'invoiced')
                 ->has('shipmentTabs.0.shipments', 1)
                 ->has('shipmentTabs.1.shipments', 1)
-                ->has('shipmentTabs.2.shipments', 0));
+                ->has('shipmentTabs.2.shipments', 0)
+                ->where('shipmentTabs.0.shipments.0.client.name', $client->name)
+                ->where('can.shipments_manage', false));
     }
 }

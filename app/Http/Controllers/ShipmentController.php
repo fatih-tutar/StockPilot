@@ -68,7 +68,7 @@ class ShipmentController extends Controller
             ->latest('ship_date')
             ->latest('id')
             ->get()
-            ->map(fn (Shipment $shipment) => $this->cardPayload($shipment))
+            ->map(fn (Shipment $shipment) => $shipment->toBoardCard())
             ->all();
     }
 
@@ -227,7 +227,7 @@ class ShipmentController extends Controller
             ->latest('id')
             ->paginate(24)
             ->withQueryString()
-            ->through(fn (Shipment $shipment) => $this->cardPayload($shipment));
+            ->through(fn (Shipment $shipment) => $shipment->toBoardCard());
     }
 
     /**
@@ -236,14 +236,7 @@ class ShipmentController extends Controller
     private function shipmentQuery(ShipmentStatus $status, string $search)
     {
         return Shipment::query()
-            ->with([
-                'client:id,name',
-                'vehicle:id,name',
-                'user:id,name',
-                'items.product:id,name,category_id',
-                'items.product.category:id,name,parent_id',
-                'items.product.category.parent:id,name',
-            ])
+            ->with(Shipment::boardRelations())
             ->where('status', $status)
             ->when($search !== '', function ($query) use ($search) {
                 $query->where(function ($inner) use ($search) {
@@ -257,34 +250,6 @@ class ShipmentController extends Controller
                     });
                 });
             });
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function cardPayload(Shipment $shipment): array
-    {
-        return [
-            'id' => $shipment->id,
-            'status' => $shipment->status->value,
-            'ship_date' => $shipment->ship_date?->format('d.m.Y'),
-            'ship_type' => $shipment->ship_type?->label(),
-            'notes' => $shipment->notes,
-            'creator_name' => $shipment->user?->name,
-            'vehicle' => $shipment->vehicle?->name,
-            'client' => [
-                'id' => $shipment->client?->id,
-                'name' => $shipment->client?->name,
-            ],
-            'items' => $shipment->items->map(fn (ShipmentItem $item) => [
-                'id' => $item->id,
-                'product_name' => $item->product?->name,
-                'kind' => $item->product?->category?->parent?->name
-                    ?? $item->product?->category?->name,
-                'quantity_piece' => $item->quantity_piece,
-                'unit_price' => $item->unit_price,
-            ])->values(),
-        ];
     }
 
     /**

@@ -92,18 +92,13 @@ class DashboardController extends Controller
                         'status' => $status->value,
                         'label' => $status->label(),
                         'shipments' => Shipment::query()
-                            ->with(['client:id,name', 'vehicle:id,name'])
+                            ->with(Shipment::boardRelations())
                             ->where('status', $status)
                             ->latest('ship_date')
                             ->latest('id')
                             ->limit(8)
                             ->get()
-                            ->map(fn (Shipment $shipment) => [
-                                'id' => $shipment->id,
-                                'ship_date' => $shipment->ship_date?->format('d.m.Y'),
-                                'vehicle_name' => $shipment->vehicle?->name,
-                                'client_name' => $shipment->client?->name,
-                            ])
+                            ->map(fn (Shipment $shipment) => $shipment->toBoardCard())
                             ->values()
                             ->all(),
                     ])
@@ -152,6 +147,7 @@ class DashboardController extends Controller
                 'clients' => $canViewClients,
                 'quotes' => $canViewQuotes,
                 'shipments' => $canViewShipments,
+                'shipments_manage' => $user->can('shipments.manage'),
                 'work_tasks' => $canViewWorkTasks,
             ],
         ]);

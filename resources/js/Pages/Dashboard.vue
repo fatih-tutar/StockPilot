@@ -1,5 +1,10 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import ConfirmModal from '@/Components/ConfirmModal.vue';
+import Modal from '@/Components/Modal.vue';
+import ShipmentOrderCard from '@/Components/ShipmentOrderCard.vue';
+import ShipmentForm from '@/Pages/Shipments/Form.vue';
+import { useShipmentOrders } from '@/composables/useShipmentOrders';
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
@@ -20,6 +25,19 @@ const activeShipmentTab = ref(props.shipmentTabs[0]?.status || 'received');
 const activeShipmentColumn = computed(
     () => props.shipmentTabs.find((tab) => tab.status === activeShipmentTab.value) || props.shipmentTabs[0],
 );
+
+const {
+    createOpen,
+    createOptions,
+    createError,
+    editingShipment,
+    deletingShipment,
+    deleteProcessing,
+    closeCreate,
+    closeDelete,
+    confirmDelete,
+    runAction,
+} = useShipmentOrders();
 
 const formatMoney = (amount, currency = 'TRY') =>
     new Intl.NumberFormat('tr-TR', {
@@ -215,16 +233,24 @@ const movementTypeLabel = (type) => {
 
                     <section
                         v-if="can.shipments"
-                        class="overflow-hidden bg-white shadow-sm sm:rounded-lg"
+                        class="overflow-hidden bg-white shadow-sm sm:rounded-lg lg:col-span-2"
                     >
-                        <div class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+                        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
                             <h3 class="font-medium text-gray-900">Müşteri siparişleri</h3>
-                            <Link
-                                :href="route('shipments.index')"
-                                class="text-sm text-indigo-600 hover:text-indigo-800"
-                            >
-                                Tümü
-                            </Link>
+                            <div class="flex items-center gap-3 text-sm">
+                                <Link
+                                    :href="route('shipments.archive')"
+                                    class="text-indigo-600 hover:text-indigo-800"
+                                >
+                                    Arşiv
+                                </Link>
+                                <Link
+                                    :href="route('shipments.index')"
+                                    class="text-indigo-600 hover:text-indigo-800"
+                                >
+                                    Tümü
+                                </Link>
+                            </div>
                         </div>
                         <div class="border-b border-gray-100 px-2">
                             <nav class="-mb-px flex gap-1 overflow-x-auto" aria-label="Sipariş sekmeleri">
@@ -245,34 +271,21 @@ const movementTypeLabel = (type) => {
                                 </button>
                             </nav>
                         </div>
-                        <ul class="divide-y divide-gray-100 text-sm">
-                            <li
+                        <div class="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
+                            <ShipmentOrderCard
                                 v-for="shipment in activeShipmentColumn?.shipments || []"
                                 :key="shipment.id"
-                                class="flex items-center justify-between gap-3 px-4 py-3"
-                            >
-                                <div>
-                                    <Link
-                                        :href="route('shipments.index')"
-                                        class="font-medium text-gray-900 hover:text-indigo-700"
-                                    >
-                                        {{ shipment.client_name || 'Müşteri siparişi' }}
-                                    </Link>
-                                    <p class="text-xs text-gray-500">
-                                        {{ shipment.ship_date }}
-                                    </p>
-                                </div>
-                                <p class="text-sm text-gray-700">
-                                    {{ shipment.vehicle_name || '—' }}
-                                </p>
-                            </li>
-                            <li
+                                :shipment="shipment"
+                                :can-manage="can.shipments_manage"
+                                @action="(key) => runAction(shipment, key)"
+                            />
+                            <div
                                 v-if="!(activeShipmentColumn?.shipments?.length)"
-                                class="px-4 py-8 text-center text-gray-500"
+                                class="col-span-full rounded-md border border-dashed border-gray-300 px-4 py-10 text-center text-sm text-gray-500"
                             >
                                 Bu sekmede sipariş yok.
-                            </li>
-                        </ul>
+                            </div>
+                        </div>
                     </section>
 
                     <section
@@ -363,5 +376,32 @@ const movementTypeLabel = (type) => {
                 </div>
             </div>
         </div>
+
+        <Modal :show="createOpen" max-width="3xl" @close="closeCreate">
+            <ShipmentForm
+                v-if="createOptions"
+                :key="editingShipment?.id || 'new'"
+                modal
+                :shipment="editingShipment"
+                :vehicles="createOptions.vehicles"
+                :ship-type-options="createOptions.shipTypeOptions"
+                :can-manage="can.shipments_manage"
+                @close="closeCreate"
+            />
+            <div v-else class="p-6 text-sm text-gray-500">
+                {{ createError || 'Yükleniyor…' }}
+            </div>
+        </Modal>
+
+        <ConfirmModal
+            :show="deletingShipment !== null"
+            title="Siparişi silmek istediğinize emin misiniz?"
+            :message="deletingShipment
+                ? `${deletingShipment.client?.name || 'Bu sipariş'} silinecek. Bu işlem geri alınamaz.`
+                : ''"
+            :processing="deleteProcessing"
+            @close="closeDelete"
+            @confirm="confirmDelete"
+        />
     </AuthenticatedLayout>
 </template>
