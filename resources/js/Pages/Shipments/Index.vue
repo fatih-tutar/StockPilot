@@ -1,5 +1,6 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import ConfirmModal from '@/Components/ConfirmModal.vue';
 import Dropdown from '@/Components/Dropdown.vue';
 import Modal from '@/Components/Modal.vue';
 import TextInput from '@/Components/TextInput.vue';
@@ -84,13 +85,34 @@ const setStatus = (shipment, status) => {
     );
 };
 
-const destroyShipment = (shipment) => {
-    if (!confirm(`${shipment.client?.name || 'Bu'} siparişi silinsin mi?`)) {
+const deletingShipment = ref(null);
+const deleteProcessing = ref(false);
+
+const askDelete = (shipment) => {
+    deletingShipment.value = shipment;
+};
+
+const closeDelete = () => {
+    if (deleteProcessing.value) {
         return;
     }
 
-    router.delete(route('shipments.destroy', shipment.id), {
+    deletingShipment.value = null;
+};
+
+const confirmDelete = () => {
+    if (!deletingShipment.value) {
+        return;
+    }
+
+    deleteProcessing.value = true;
+
+    router.delete(route('shipments.destroy', deletingShipment.value.id), {
         preserveScroll: true,
+        onFinish: () => {
+            deleteProcessing.value = false;
+            deletingShipment.value = null;
+        },
     });
 };
 
@@ -153,7 +175,7 @@ const runAction = (shipment, key) => {
     }
 
     if (key === 'delete') {
-        destroyShipment(shipment);
+        askDelete(shipment);
     }
 };
 
@@ -331,5 +353,16 @@ const money = (value) => {
                 {{ createError || 'Yükleniyor…' }}
             </div>
         </Modal>
+
+        <ConfirmModal
+            :show="deletingShipment !== null"
+            title="Siparişi silmek istediğinize emin misiniz?"
+            :message="deletingShipment
+                ? `${deletingShipment.client?.name || 'Bu sipariş'} silinecek. Bu işlem geri alınamaz.`
+                : ''"
+            :processing="deleteProcessing"
+            @close="closeDelete"
+            @confirm="confirmDelete"
+        />
     </AuthenticatedLayout>
 </template>

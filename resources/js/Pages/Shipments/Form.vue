@@ -1,5 +1,6 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import ConfirmModal from '@/Components/ConfirmModal.vue';
 import DangerButton from '@/Components/DangerButton.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
@@ -218,12 +219,25 @@ const submit = () => {
     }
 };
 
-const destroyShipment = () => {
-    if (!confirm('Bu müşteri siparişi silinsin mi?')) {
+const confirmingDelete = ref(false);
+
+const askDelete = () => {
+    confirmingDelete.value = true;
+};
+
+const closeDelete = () => {
+    if (deleteForm.processing) {
         return;
     }
+
+    confirmingDelete.value = false;
+};
+
+const destroyShipment = () => {
     deleteForm.delete(route('shipments.destroy', props.shipment.id), {
         onSuccess: () => {
+            confirmingDelete.value = false;
+
             if (props.modal) {
                 emit('close');
             }
@@ -525,7 +539,7 @@ onUnmounted(() => {
                                 v-if="isEdit && canManage"
                                 type="button"
                                 :disabled="deleteForm.processing"
-                                @click="destroyShipment"
+                                @click="askDelete"
                             >
                                 Sil
                             </DangerButton>
@@ -534,5 +548,14 @@ onUnmounted(() => {
                 </div>
             </div>
         </component>
+
+        <ConfirmModal
+            :show="confirmingDelete"
+            title="Siparişi silmek istediğinize emin misiniz?"
+            message="Bu müşteri siparişi silinecek. Bu işlem geri alınamaz."
+            :processing="deleteForm.processing"
+            @close="closeDelete"
+            @confirm="destroyShipment"
+        />
     </div>
 </template>

@@ -1,13 +1,13 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, usePage } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 
 const props = defineProps({
     stats: { type: Object, required: true },
     lowStockProducts: { type: Array, default: () => [] },
     openQuotes: { type: Array, default: () => [] },
-    activeShipments: { type: Array, default: () => [] },
+    shipmentTabs: { type: Array, default: () => [] },
     recentMovements: { type: Array, default: () => [] },
     upcomingWorkTasks: { type: Array, default: () => [] },
     can: { type: Object, required: true },
@@ -16,6 +16,10 @@ const props = defineProps({
 const page = usePage();
 const user = computed(() => page.props.auth.user);
 const columns = computed(() => page.props.auth?.user?.columns ?? {});
+const activeShipmentTab = ref(props.shipmentTabs[0]?.status || 'received');
+const activeShipmentColumn = computed(
+    () => props.shipmentTabs.find((tab) => tab.status === activeShipmentTab.value) || props.shipmentTabs[0],
+);
 
 const formatMoney = (amount, currency = 'TRY') =>
     new Intl.NumberFormat('tr-TR', {
@@ -214,7 +218,7 @@ const movementTypeLabel = (type) => {
                         class="overflow-hidden bg-white shadow-sm sm:rounded-lg"
                     >
                         <div class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
-                            <h3 class="font-medium text-gray-900">Aktif müşteri siparişleri</h3>
+                            <h3 class="font-medium text-gray-900">Müşteri siparişleri</h3>
                             <Link
                                 :href="route('shipments.index')"
                                 class="text-sm text-indigo-600 hover:text-indigo-800"
@@ -222,9 +226,28 @@ const movementTypeLabel = (type) => {
                                 Tümü
                             </Link>
                         </div>
+                        <div class="border-b border-gray-100 px-2">
+                            <nav class="-mb-px flex gap-1 overflow-x-auto" aria-label="Sipariş sekmeleri">
+                                <button
+                                    v-for="tab in shipmentTabs"
+                                    :key="tab.status"
+                                    type="button"
+                                    class="whitespace-nowrap border-b-2 px-3 py-2.5 text-xs font-medium transition sm:text-sm"
+                                    :class="
+                                        activeShipmentTab === tab.status
+                                            ? 'border-indigo-600 text-indigo-600'
+                                            : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                                    "
+                                    @click="activeShipmentTab = tab.status"
+                                >
+                                    {{ tab.label }}
+                                    <span class="ms-1 text-gray-400">({{ tab.shipments.length }})</span>
+                                </button>
+                            </nav>
+                        </div>
                         <ul class="divide-y divide-gray-100 text-sm">
                             <li
-                                v-for="shipment in activeShipments"
+                                v-for="shipment in activeShipmentColumn?.shipments || []"
                                 :key="shipment.id"
                                 class="flex items-center justify-between gap-3 px-4 py-3"
                             >
@@ -236,8 +259,7 @@ const movementTypeLabel = (type) => {
                                         {{ shipment.client_name || 'Müşteri siparişi' }}
                                     </Link>
                                     <p class="text-xs text-gray-500">
-                                        {{ shipment.status_label }}
-                                        · {{ shipment.ship_date }}
+                                        {{ shipment.ship_date }}
                                     </p>
                                 </div>
                                 <p class="text-sm text-gray-700">
@@ -245,10 +267,10 @@ const movementTypeLabel = (type) => {
                                 </p>
                             </li>
                             <li
-                                v-if="activeShipments.length === 0"
+                                v-if="!(activeShipmentColumn?.shipments?.length)"
                                 class="px-4 py-8 text-center text-gray-500"
                             >
-                                Aktif müşteri siparişi yok.
+                                Bu sekmede sipariş yok.
                             </li>
                         </ul>
                     </section>

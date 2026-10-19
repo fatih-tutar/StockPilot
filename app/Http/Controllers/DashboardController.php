@@ -45,10 +45,7 @@ class DashboardController extends Controller
                 ])->count()
                 : null,
             'active_shipments_count' => $canViewShipments
-                ? Shipment::query()->whereIn('status', [
-                    ShipmentStatus::Received,
-                    ShipmentStatus::Preparing,
-                ])->count()
+                ? Shipment::query()->whereIn('status', ShipmentStatus::tabs())->count()
                 : null,
         ];
 
@@ -89,22 +86,29 @@ class DashboardController extends Controller
                     ])
                     ->values()
                 : [],
-            'activeShipments' => $canViewShipments
-                ? Shipment::query()
-                    ->with(['client:id,name', 'vehicle:id,name,license_plate'])
-                    ->whereIn('status', [ShipmentStatus::Received, ShipmentStatus::Preparing])
-                    ->orderBy('ship_date')
-                    ->limit(8)
-                    ->get()
-                    ->map(fn (Shipment $shipment) => [
-                        'id' => $shipment->id,
-                        'status' => $shipment->status->value,
-                        'status_label' => $shipment->status->label(),
-                        'ship_date' => $shipment->ship_date?->toDateString(),
-                        'vehicle_name' => $shipment->vehicle?->name,
-                        'client_name' => $shipment->client?->name,
+            'shipmentTabs' => $canViewShipments
+                ? collect(ShipmentStatus::tabs())
+                    ->map(fn (ShipmentStatus $status) => [
+                        'status' => $status->value,
+                        'label' => $status->label(),
+                        'shipments' => Shipment::query()
+                            ->with(['client:id,name', 'vehicle:id,name'])
+                            ->where('status', $status)
+                            ->latest('ship_date')
+                            ->latest('id')
+                            ->limit(8)
+                            ->get()
+                            ->map(fn (Shipment $shipment) => [
+                                'id' => $shipment->id,
+                                'ship_date' => $shipment->ship_date?->format('d.m.Y'),
+                                'vehicle_name' => $shipment->vehicle?->name,
+                                'client_name' => $shipment->client?->name,
+                            ])
+                            ->values()
+                            ->all(),
                     ])
                     ->values()
+                    ->all()
                 : [],
             'recentMovements' => $canViewStock
                 ? StockMovement::query()

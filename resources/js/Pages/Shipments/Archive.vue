@@ -1,5 +1,6 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import ConfirmModal from '@/Components/ConfirmModal.vue';
 import Dropdown from '@/Components/Dropdown.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
@@ -32,13 +33,34 @@ const restore = (shipment) => {
     );
 };
 
-const destroyShipment = (shipment) => {
-    if (!confirm(`${shipment.client?.name || 'Bu'} siparişi silinsin mi?`)) {
+const deletingShipment = ref(null);
+const deleteProcessing = ref(false);
+
+const askDelete = (shipment) => {
+    deletingShipment.value = shipment;
+};
+
+const closeDelete = () => {
+    if (deleteProcessing.value) {
         return;
     }
 
-    router.delete(route('shipments.destroy', shipment.id), {
+    deletingShipment.value = null;
+};
+
+const confirmDelete = () => {
+    if (!deletingShipment.value) {
+        return;
+    }
+
+    deleteProcessing.value = true;
+
+    router.delete(route('shipments.destroy', deletingShipment.value.id), {
         preserveScroll: true,
+        onFinish: () => {
+            deleteProcessing.value = false;
+            deletingShipment.value = null;
+        },
     });
 };
 
@@ -138,7 +160,7 @@ const money = (value) => {
                                     <button
                                         type="button"
                                         class="block w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50"
-                                        @click="destroyShipment(shipment)"
+                                        @click="askDelete(shipment)"
                                     >
                                         Sil
                                     </button>
@@ -195,5 +217,16 @@ const money = (value) => {
                 </div>
             </div>
         </div>
+
+        <ConfirmModal
+            :show="deletingShipment !== null"
+            title="Siparişi silmek istediğinize emin misiniz?"
+            :message="deletingShipment
+                ? `${deletingShipment.client?.name || 'Bu sipariş'} silinecek. Bu işlem geri alınamaz.`
+                : ''"
+            :processing="deleteProcessing"
+            @close="closeDelete"
+            @confirm="confirmDelete"
+        />
     </AuthenticatedLayout>
 </template>

@@ -66,6 +66,12 @@ class DashboardTest extends TestCase
             'status' => ShipmentStatus::Preparing,
         ]);
 
+        Shipment::factory()->create([
+            'client_id' => $client->id,
+            'user_id' => $user->id,
+            'status' => ShipmentStatus::Received,
+        ]);
+
         $this->actingAs($user)
             ->get(route('dashboard'))
             ->assertOk()
@@ -74,9 +80,15 @@ class DashboardTest extends TestCase
                 ->where('stats.low_stock_count', 1)
                 ->where('stats.active_clients_count', 1)
                 ->where('stats.open_quotes_count', 1)
-                ->where('stats.active_shipments_count', 1)
+                ->where('stats.active_shipments_count', 2)
                 ->has('lowStockProducts', 1)
                 ->has('openQuotes', 1)
-                ->has('activeShipments', 1));
+                ->has('shipmentTabs', 3)
+                ->where('shipmentTabs.0.status', 'received')
+                ->where('shipmentTabs.1.status', 'preparing')
+                ->where('shipmentTabs.2.status', 'invoiced')
+                ->has('shipmentTabs.0.shipments', 1)
+                ->has('shipmentTabs.1.shipments', 1)
+                ->has('shipmentTabs.2.shipments', 0));
     }
 }
