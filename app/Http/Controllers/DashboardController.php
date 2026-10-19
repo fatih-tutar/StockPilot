@@ -54,7 +54,7 @@ class DashboardController extends Controller
             'lowStockProducts' => $canViewStock
                 ? $this->lowStockQuery()
                     ->orderBy('quantity_piece')
-                    ->limit(8)
+                    ->limit(4)
                     ->get(['id', 'name', 'sku', 'quantity_piece', 'quantity_pallet', 'low_stock_threshold'])
                     ->map(fn (Product $product) => [
                         'id' => $product->id,
@@ -72,7 +72,7 @@ class DashboardController extends Controller
                     ->whereIn('status', [QuoteStatus::Draft, QuoteStatus::Sent])
                     ->latest('quote_date')
                     ->latest('id')
-                    ->limit(8)
+                    ->limit(4)
                     ->get()
                     ->map(fn (Quote $quote) => [
                         'id' => $quote->id,
@@ -96,7 +96,7 @@ class DashboardController extends Controller
                             ->where('status', $status)
                             ->latest('ship_date')
                             ->latest('id')
-                            ->limit(8)
+                            ->limit(4)
                             ->get()
                             ->map(fn (Shipment $shipment) => $shipment->toBoardCard())
                             ->values()
@@ -109,7 +109,7 @@ class DashboardController extends Controller
                 ? StockMovement::query()
                     ->with(['product:id,name', 'user:id,name'])
                     ->latest('id')
-                    ->limit(8)
+                    ->limit(4)
                     ->get()
                     ->map(fn (StockMovement $movement) => [
                         'id' => $movement->id,
@@ -132,7 +132,7 @@ class DashboardController extends Controller
                     })
                     ->orderBy('due_on')
                     ->orderBy('id')
-                    ->limit(8)
+                    ->limit(4)
                     ->get()
                     ->map(fn (WorkTask $task) => [
                         'id' => $task->id,

@@ -136,7 +136,7 @@ const movementTypeLabel = (type) => {
                     </div>
                 </div>
 
-                <div class="grid gap-6 lg:grid-cols-2">
+                <div class="grid gap-4 lg:grid-cols-2">
                     <section
                         v-if="can.stock"
                         class="overflow-hidden bg-white shadow-sm sm:rounded-lg"
@@ -150,11 +150,11 @@ const movementTypeLabel = (type) => {
                                 Tümü
                             </Link>
                         </div>
-                        <ul class="divide-y divide-gray-100 text-sm">
+                        <ul class="max-h-48 divide-y divide-gray-100 overflow-y-auto text-sm">
                             <li
                                 v-for="product in lowStockProducts"
                                 :key="product.id"
-                                class="flex items-center justify-between gap-3 px-4 py-3"
+                                class="flex items-center justify-between gap-3 px-4 py-2"
                             >
                                 <div>
                                     <Link
@@ -179,7 +179,7 @@ const movementTypeLabel = (type) => {
                             </li>
                             <li
                                 v-if="lowStockProducts.length === 0"
-                                class="px-4 py-8 text-center text-gray-500"
+                                class="px-4 py-4 text-center text-gray-500"
                             >
                                 Düşük stoklu ürün yok.
                             </li>
@@ -199,11 +199,11 @@ const movementTypeLabel = (type) => {
                                 Tümü
                             </Link>
                         </div>
-                        <ul class="divide-y divide-gray-100 text-sm">
+                        <ul class="max-h-48 divide-y divide-gray-100 overflow-y-auto text-sm">
                             <li
                                 v-for="quote in openQuotes"
                                 :key="quote.id"
-                                class="flex items-center justify-between gap-3 px-4 py-3"
+                                class="flex items-center justify-between gap-3 px-4 py-2"
                             >
                                 <div>
                                     <Link
@@ -224,7 +224,7 @@ const movementTypeLabel = (type) => {
                             </li>
                             <li
                                 v-if="openQuotes.length === 0"
-                                class="px-4 py-8 text-center text-gray-500"
+                                class="px-4 py-4 text-center text-gray-500"
                             >
                                 Açık teklif yok.
                             </li>
@@ -235,7 +235,7 @@ const movementTypeLabel = (type) => {
                         v-if="can.shipments"
                         class="overflow-hidden bg-white shadow-sm sm:rounded-lg lg:col-span-2"
                     >
-                        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
+                        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-2.5">
                             <h3 class="font-medium text-gray-900">Müşteri siparişleri</h3>
                             <div class="flex items-center gap-3 text-sm">
                                 <Link
@@ -258,7 +258,7 @@ const movementTypeLabel = (type) => {
                                     v-for="tab in shipmentTabs"
                                     :key="tab.status"
                                     type="button"
-                                    class="whitespace-nowrap border-b-2 px-3 py-2.5 text-xs font-medium transition sm:text-sm"
+                                    class="whitespace-nowrap border-b-2 px-3 py-2 text-xs font-medium transition sm:text-sm"
                                     :class="
                                         activeShipmentTab === tab.status
                                             ? 'border-indigo-600 text-indigo-600'
@@ -271,19 +271,22 @@ const movementTypeLabel = (type) => {
                                 </button>
                             </nav>
                         </div>
-                        <div class="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
-                            <ShipmentOrderCard
-                                v-for="shipment in activeShipmentColumn?.shipments || []"
-                                :key="shipment.id"
-                                :shipment="shipment"
-                                :can-manage="can.shipments_manage"
-                                @action="(key) => runAction(shipment, key)"
-                            />
-                            <div
-                                v-if="!(activeShipmentColumn?.shipments?.length)"
-                                class="col-span-full rounded-md border border-dashed border-gray-300 px-4 py-10 text-center text-sm text-gray-500"
-                            >
-                                Bu sekmede sipariş yok.
+                        <div class="max-h-56 overflow-y-auto p-3">
+                            <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                                <ShipmentOrderCard
+                                    v-for="shipment in activeShipmentColumn?.shipments || []"
+                                    :key="shipment.id"
+                                    compact
+                                    :shipment="shipment"
+                                    :can-manage="can.shipments_manage"
+                                    @action="(key) => runAction(shipment, key)"
+                                />
+                                <div
+                                    v-if="!(activeShipmentColumn?.shipments?.length)"
+                                    class="col-span-full rounded-md border border-dashed border-gray-300 px-4 py-6 text-center text-sm text-gray-500"
+                                >
+                                    Bu sekmede sipariş yok.
+                                </div>
                             </div>
                         </div>
                     </section>
@@ -301,11 +304,11 @@ const movementTypeLabel = (type) => {
                                 Tümü
                             </Link>
                         </div>
-                        <ul class="divide-y divide-gray-100 text-sm">
+                        <ul class="max-h-48 divide-y divide-gray-100 overflow-y-auto text-sm">
                             <li
                                 v-for="task in upcomingWorkTasks"
                                 :key="task.id"
-                                class="flex items-center justify-between gap-3 px-4 py-3"
+                                class="flex items-center justify-between gap-3 px-4 py-2"
                             >
                                 <Link
                                     :href="route('work-tasks.index')"
@@ -322,7 +325,7 @@ const movementTypeLabel = (type) => {
                             </li>
                             <li
                                 v-if="upcomingWorkTasks.length === 0"
-                                class="px-4 py-8 text-center text-gray-500"
+                                class="px-4 py-4 text-center text-gray-500"
                             >
                                 Önümüzdeki 30 günde açık iş yok.
                             </li>
@@ -342,11 +345,11 @@ const movementTypeLabel = (type) => {
                                 Ürünler
                             </Link>
                         </div>
-                        <ul class="divide-y divide-gray-100 text-sm">
+                        <ul class="max-h-48 divide-y divide-gray-100 overflow-y-auto text-sm">
                             <li
                                 v-for="movement in recentMovements"
                                 :key="movement.id"
-                                class="px-4 py-3"
+                                class="px-4 py-2"
                             >
                                 <div class="flex items-center justify-between gap-3">
                                     <p class="font-medium text-gray-900">
@@ -367,7 +370,7 @@ const movementTypeLabel = (type) => {
                             </li>
                             <li
                                 v-if="recentMovements.length === 0"
-                                class="px-4 py-8 text-center text-gray-500"
+                                class="px-4 py-4 text-center text-gray-500"
                             >
                                 Henüz stok hareketi yok.
                             </li>

@@ -4,6 +4,7 @@ import Dropdown from '@/Components/Dropdown.vue';
 const props = defineProps({
     shipment: { type: Object, required: true },
     canManage: { type: Boolean, default: false },
+    compact: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['action']);
@@ -49,9 +50,15 @@ const money = (value) => {
 
 <template>
     <article class="flex flex-col rounded-md border border-gray-200 bg-white shadow-sm">
-        <div class="flex items-start justify-between gap-3 border-b border-gray-100 px-3 py-2.5">
+        <div
+            class="flex items-start justify-between gap-3 border-b border-gray-100 px-3"
+            :class="compact ? 'py-1.5' : 'py-2.5'"
+        >
             <div class="min-w-0">
-                <h3 class="truncate text-sm font-semibold text-gray-900">
+                <h3
+                    class="truncate font-semibold text-gray-900"
+                    :class="compact ? 'text-xs' : 'text-sm'"
+                >
                     {{ shipment.client?.name || 'Müşteri yok' }}
                 </h3>
                 <p class="mt-0.5 text-xs text-gray-500">{{ shipment.ship_date }}</p>
@@ -83,10 +90,13 @@ const money = (value) => {
             </Dropdown>
         </div>
 
-        <div class="flex-1 space-y-2 px-3 py-2.5 text-sm text-gray-700">
+        <div
+            class="flex-1 text-gray-700"
+            :class="compact ? 'space-y-1.5 px-3 py-1.5 text-xs' : 'space-y-2 px-3 py-2.5 text-sm'"
+        >
             <div class="space-y-1">
                 <div
-                    v-for="item in shipment.items"
+                    v-for="item in (compact ? shipment.items.slice(0, 2) : shipment.items)"
                     :key="item.id"
                     class="flex items-start justify-between gap-2"
                 >
@@ -100,16 +110,33 @@ const money = (value) => {
                     </div>
                     <p class="shrink-0 text-xs text-gray-600">{{ money(item.unit_price) }}</p>
                 </div>
+                <p
+                    v-if="compact && shipment.items.length > 2"
+                    class="text-xs text-gray-400"
+                >
+                    +{{ shipment.items.length - 2 }} ürün daha
+                </p>
                 <p v-if="shipment.items.length === 0" class="text-xs text-gray-500">
                     Ürün yok.
                 </p>
             </div>
 
-            <div class="space-y-0.5 border-t border-gray-100 pt-2 text-xs text-gray-500">
+            <div
+                v-if="!compact"
+                class="space-y-0.5 border-t border-gray-100 pt-2 text-xs text-gray-500"
+            >
                 <p v-if="shipment.creator_name">Oluşturan: {{ shipment.creator_name }}</p>
                 <p v-if="shipment.ship_type">Sevk tipi: {{ shipment.ship_type }}</p>
                 <p v-if="shipment.vehicle">Araç: {{ shipment.vehicle }}</p>
                 <p v-if="shipment.notes">Açıklama: {{ shipment.notes }}</p>
+            </div>
+            <div
+                v-else-if="shipment.vehicle || shipment.ship_type"
+                class="truncate text-xs text-gray-500"
+            >
+                <span v-if="shipment.ship_type">{{ shipment.ship_type }}</span>
+                <span v-if="shipment.ship_type && shipment.vehicle"> · </span>
+                <span v-if="shipment.vehicle">{{ shipment.vehicle }}</span>
             </div>
         </div>
     </article>
