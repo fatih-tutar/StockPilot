@@ -319,6 +319,7 @@ class CatalogItemTest extends TestCase
 
     public function test_legacy_import_keeps_ids_prices_and_image_names(): void
     {
+        $company = Company::factory()->create();
         $directory = storage_path('framework/testing/catalog-import');
         File::ensureDirectoryExists($directory);
         File::put($directory.'/catalog.csv', implode("\n", [
@@ -348,7 +349,8 @@ class CatalogItemTest extends TestCase
 
         $this->assertNotNull($first);
         $this->assertNotNull($second);
-        $this->assertNull($first->company_id);
+        $this->assertSame($company->id, $first->company_id);
+        $this->assertSame($company->id, $second->company_id);
         $this->assertSame('120 TL', $first->price);
         $this->assertSame('6 METRE', $first->quantity);
         $this->assertSame('2021-01-01 00:00:00', $first->created_at?->format('Y-m-d H:i:s'));
@@ -358,6 +360,47 @@ class CatalogItemTest extends TestCase
         $this->assertSame(2, CatalogItem::query()->count());
         $this->assertNotNull($removed);
         $this->assertNotNull($removed->deleted_at);
+        $this->assertSame($company->id, $removed->company_id);
         $this->assertSame(3, CatalogItem::withTrashed()->count());
+    }
+
+    public function test_legacy_import_backfills_null_company_on_existing_rows(): void
+    {
+        $company = Company::factory()->create();
+        CatalogItem::factory()->create([
+            'id' => 15,
+            'company_id' => null,
+            'product_code' => 'LED-1',
+            'model' => 'Sıva üstü',
+        ]);
+
+        $directory = storage_path('framework/testing/catalog-backfill');
+        File::ensureDirectoryExists($directory);
+        File::put($directory.'/catalog.csv', implode("\n", [
+            'id,product,code,model,quantity,price,image_1,image_2,description,created_at,is_deleted,sort_order',
+            '15,LED-1,A1,Sıva üstü,6 METRE,120 TL,bir.jpg,iki.png,Koridor,1609459200,0,3',
+        ]));
+
+        try {
+            $this->artisan('stockpilot:import-legacy', [
+                'path' => $directory,
+                '--only' => 'catalog',
+            ])->assertSuccessful();
+        } finally {
+            File::deleteDirectory($directory);
+        }
+
+        $item = CatalogItem::query()->find(15);
+        $this->assertNotNull($item);
+        $this->assertSame($company->id, $item->company_id);
+
+        $user = $this->manager($company->id);
+        $this->actingAs($user)
+            ->get(route('catalog-items.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('CatalogItems/Index')
+                ->has('groups', 1)
+                ->where('groups.0.product_code', 'LED-1'));
     }
 }

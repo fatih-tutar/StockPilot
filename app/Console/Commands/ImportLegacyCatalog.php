@@ -1163,6 +1163,8 @@ class ImportLegacyCatalog extends Command
     private function insertCatalogItems(array $rows): int
     {
         $existing = DB::table('catalog_items')->pluck('id')->map(fn ($id) => (int) $id)->flip();
+        $companyId = DB::table('companies')->orderBy('id')->value('id')
+            ?? DB::table('products')->whereNotNull('company_id')->value('company_id');
         $now = now();
         $pending = [];
         $files = [];
@@ -1177,7 +1179,7 @@ class ImportLegacyCatalog extends Command
             $createdAt = $this->unixTimestamp($row['created_at'] ?? null);
             $record = [
                 'id' => $id,
-                'company_id' => null,
+                'company_id' => $companyId,
                 'product_code' => $this->blankToNull($row['product'] ?? null),
                 'code' => $this->blankToNull($row['code'] ?? null),
                 'model' => $this->blankToNull($row['model'] ?? null),
@@ -1213,6 +1215,16 @@ class ImportLegacyCatalog extends Command
             DB::table('catalog_items')->insert($chunk);
             $written += count($chunk);
             $this->info("Catalog rows written: {$written}");
+        }
+
+        if ($companyId !== null) {
+            $filled = DB::table('catalog_items')
+                ->whereNull('company_id')
+                ->update(['company_id' => $companyId, 'updated_at' => $now]);
+
+            if ($filled > 0) {
+                $this->info("Assigned company {$companyId} to {$filled} catalog rows that had no company.");
+            }
         }
 
         foreach ($files as [$id, $collection, $fileName]) {
