@@ -1,6 +1,6 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import InputLabel from '@/Components/InputLabel.vue';
+import Dropdown from '@/Components/Dropdown.vue';
 import Modal from '@/Components/Modal.vue';
 import TextInput from '@/Components/TextInput.vue';
 import ShipmentForm from '@/Pages/Shipments/Form.vue';
@@ -11,7 +11,7 @@ import { computed, ref, watch } from 'vue';
 const props = defineProps({
     shipments: { type: Object, required: true },
     filters: { type: Object, required: true },
-    statusOptions: { type: Array, required: true },
+    tabs: { type: Array, required: true },
     canManage: { type: Boolean, required: true },
 });
 
@@ -19,21 +19,31 @@ const page = usePage();
 const flashSuccess = computed(() => page.props.flash?.success);
 const flashError = computed(() => page.props.flash?.error);
 const search = ref(props.filters.search || '');
-const status = ref(props.filters.status || '');
+const activeTab = computed(() => props.filters.tab);
 
 const applyFilters = () => {
     router.get(
         route('shipments.index'),
         {
+            tab: activeTab.value,
             search: search.value || undefined,
-            status: status.value || undefined,
         },
         { preserveState: true, replace: true },
     );
 };
 
 watch(search, applyFilters);
-watch(status, applyFilters);
+
+const switchTab = (tab) => {
+    router.get(
+        route('shipments.index'),
+        {
+            tab,
+            search: search.value || undefined,
+        },
+        { preserveState: true, replace: true },
+    );
+};
 
 const createOpen = ref(false);
 const createOptions = ref(null);
@@ -77,6 +87,98 @@ const openEdit = async (shipmentId) => {
 const closeCreate = () => {
     createOpen.value = false;
 };
+
+const setStatus = (shipment, status) => {
+    router.patch(
+        route('shipments.status', shipment.id),
+        { status },
+        { preserveScroll: true },
+    );
+};
+
+const destroyShipment = (shipment) => {
+    if (!confirm(`${shipment.client?.name || 'Bu'} siparişi silinsin mi?`)) {
+        return;
+    }
+
+    router.delete(route('shipments.destroy', shipment.id), {
+        preserveScroll: true,
+    });
+};
+
+const menuActions = (shipment) => {
+    if (shipment.status === 'received') {
+        return [
+            { key: 'edit', label: 'Düzenle' },
+            { key: 'print', label: 'Siparişi yazdır' },
+            { key: 'prepare', label: 'Sevkiyat hazır' },
+            { key: 'delete', label: 'Sil', danger: true },
+        ];
+    }
+
+    if (shipment.status === 'preparing') {
+        return [
+            { key: 'edit', label: 'Düzenle' },
+            { key: 'revert', label: 'Geri al' },
+            { key: 'invoice', label: 'Fatura hazır' },
+            { key: 'delete', label: 'Sil', danger: true },
+        ];
+    }
+
+    return [
+        { key: 'edit', label: 'Düzenle' },
+        { key: 'revert', label: 'Geri al' },
+        { key: 'archive', label: 'Arşive gönder' },
+        { key: 'delete', label: 'Sil', danger: true },
+    ];
+};
+
+const runAction = (shipment, key) => {
+    if (key === 'edit') {
+        openEdit(shipment.id);
+        return;
+    }
+
+    if (key === 'print') {
+        window.open(route('shipments.print', shipment.id), '_blank');
+        return;
+    }
+
+    if (key === 'prepare') {
+        setStatus(shipment, 'preparing');
+        return;
+    }
+
+    if (key === 'invoice') {
+        setStatus(shipment, 'invoiced');
+        return;
+    }
+
+    if (key === 'archive') {
+        setStatus(shipment, 'archived');
+        return;
+    }
+
+    if (key === 'revert') {
+        setStatus(shipment, shipment.status === 'invoiced' ? 'preparing' : 'received');
+        return;
+    }
+
+    if (key === 'delete') {
+        destroyShipment(shipment);
+    }
+};
+
+const money = (value) => {
+    if (value === null || value === undefined || value === '') {
+        return '—';
+    }
+
+    return `${Number(value).toLocaleString('tr-TR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    })} TL`;
+};
 </script>
 
 <template>
@@ -84,18 +186,26 @@ const closeCreate = () => {
 
     <AuthenticatedLayout>
         <template #header>
-            <div class="flex items-center justify-between gap-4">
+            <div class="flex flex-wrap items-center justify-between gap-4">
                 <h2 class="text-xl font-semibold leading-tight text-gray-800">
                     Müşteri siparişleri
                 </h2>
-                <button
-                    v-if="canManage"
-                    type="button"
-                    class="inline-flex items-center rounded-md border border-transparent bg-gray-800 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white transition hover:bg-gray-700"
-                    @click="openCreate"
-                >
-                    Yeni müşteri siparişi
-                </button>
+                <div class="flex flex-wrap items-center gap-2">
+                    <Link
+                        :href="route('shipments.archive')"
+                        class="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-widest text-gray-700 transition hover:bg-gray-50"
+                    >
+                        Arşiv
+                    </Link>
+                    <button
+                        v-if="canManage"
+                        type="button"
+                        class="inline-flex items-center rounded-md border border-transparent bg-gray-800 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white transition hover:bg-gray-700"
+                        @click="openCreate"
+                    >
+                        Yeni müşteri siparişi
+                    </button>
+                </div>
             </div>
         </template>
 
@@ -114,112 +224,127 @@ const closeCreate = () => {
                     {{ flashError }}
                 </div>
 
-                <div class="grid gap-4 bg-white p-4 shadow-sm sm:grid-cols-2 sm:rounded-lg">
-                    <div>
-                        <InputLabel for="search" value="Ara" />
-                        <TextInput
-                            id="search"
-                            v-model="search"
-                            class="mt-1 block w-full"
-                            placeholder="Sipariş no, müşteri, araç"
-                        />
-                    </div>
-                    <div>
-                        <InputLabel for="status" value="Durum" />
-                        <select
-                            id="status"
-                            v-model="status"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                <div class="bg-white p-4 shadow-sm sm:rounded-lg">
+                    <TextInput
+                        v-model="search"
+                        class="block w-full"
+                        placeholder="Müşteri, ürün veya araç ara"
+                    />
+                </div>
+
+                <div class="border-b border-gray-200">
+                    <nav class="-mb-px flex flex-wrap gap-2" aria-label="Sipariş sekmeleri">
+                        <button
+                            v-for="tab in tabs"
+                            :key="tab.value"
+                            type="button"
+                            class="whitespace-nowrap border-b-2 px-4 py-3 text-sm font-medium transition"
+                            :class="
+                                activeTab === tab.value
+                                    ? 'border-indigo-600 text-indigo-600'
+                                    : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                            "
+                            @click="switchTab(tab.value)"
                         >
-                            <option value="">Tümü</option>
-                            <option
-                                v-for="option in statusOptions"
-                                :key="option.value"
-                                :value="option.value"
-                            >
-                                {{ option.label }}
-                            </option>
-                        </select>
+                            {{ tab.label }}
+                        </button>
+                    </nav>
+                </div>
+
+                <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    <article
+                        v-for="shipment in shipments.data"
+                        :key="shipment.id"
+                        class="flex flex-col rounded-lg border border-gray-200 bg-white shadow-sm"
+                    >
+                        <div class="flex items-start justify-between gap-3 border-b border-gray-100 px-4 py-3">
+                            <div class="min-w-0">
+                                <h3 class="truncate text-base font-semibold text-gray-900">
+                                    {{ shipment.client?.name || 'Müşteri yok' }}
+                                </h3>
+                                <p class="mt-1 text-xs text-gray-500">{{ shipment.ship_date }}</p>
+                            </div>
+                            <Dropdown v-if="canManage" align="right" width="48">
+                                <template #trigger>
+                                    <button
+                                        type="button"
+                                        class="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+                                        aria-label="İşlemler"
+                                    >
+                                        <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                            <path d="M10 4.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3ZM10 11.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3ZM10 18.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z" />
+                                        </svg>
+                                    </button>
+                                </template>
+                                <template #content>
+                                    <button
+                                        v-for="action in menuActions(shipment)"
+                                        :key="action.key"
+                                        type="button"
+                                        class="block w-full px-4 py-2 text-left text-sm"
+                                        :class="action.danger ? 'text-red-600 hover:bg-red-50' : 'text-gray-700 hover:bg-gray-100'"
+                                        @click="runAction(shipment, action.key)"
+                                    >
+                                        {{ action.label }}
+                                    </button>
+                                </template>
+                            </Dropdown>
+                        </div>
+
+                        <div class="flex-1 space-y-3 px-4 py-3 text-sm text-gray-700">
+                            <div class="space-y-1">
+                                <div
+                                    v-for="item in shipment.items"
+                                    :key="item.id"
+                                    class="flex items-start justify-between gap-3"
+                                >
+                                    <div class="min-w-0">
+                                        <p class="truncate font-medium text-gray-900">
+                                            {{ item.product_name || 'Ürün yok' }}
+                                        </p>
+                                        <p class="text-xs text-gray-500">
+                                            {{ item.kind || '—' }} · {{ item.quantity_piece }} adet
+                                        </p>
+                                    </div>
+                                    <p class="shrink-0 text-xs text-gray-600">{{ money(item.unit_price) }}</p>
+                                </div>
+                                <p v-if="shipment.items.length === 0" class="text-gray-500">Ürün yok.</p>
+                            </div>
+
+                            <div class="space-y-1 border-t border-gray-100 pt-3 text-xs text-gray-500">
+                                <p v-if="shipment.creator_name">Oluşturan: {{ shipment.creator_name }}</p>
+                                <p v-if="shipment.ship_type">Sevk tipi: {{ shipment.ship_type }}</p>
+                                <p v-if="shipment.vehicle">Araç: {{ shipment.vehicle }}</p>
+                                <p v-if="shipment.notes">Açıklama: {{ shipment.notes }}</p>
+                            </div>
+                        </div>
+                    </article>
+
+                    <div
+                        v-if="shipments.data.length === 0"
+                        class="col-span-full rounded-lg border border-dashed border-gray-300 bg-white px-4 py-12 text-center text-sm text-gray-500"
+                    >
+                        Bu sekmede sipariş yok.
                     </div>
                 </div>
 
-                <div class="overflow-hidden bg-white shadow-sm sm:rounded-lg">
-                    <table class="min-w-full divide-y divide-gray-200 text-sm">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-4 py-3 text-left font-medium text-gray-600">No</th>
-                                <th class="px-4 py-3 text-left font-medium text-gray-600">Müşteri</th>
-                                <th class="px-4 py-3 text-left font-medium text-gray-600">Tarih</th>
-                                <th class="px-4 py-3 text-left font-medium text-gray-600">Araç</th>
-                                <th class="px-4 py-3 text-left font-medium text-gray-600">Durum</th>
-                                <th class="px-4 py-3 text-right font-medium text-gray-600">İşlemler</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-100">
-                            <tr v-for="shipment in shipments.data" :key="shipment.id">
-                                <td class="px-4 py-3">
-                                    <div class="font-medium text-gray-900">
-                                        {{ shipment.number }}
-                                    </div>
-                                    <div
-                                        v-if="shipment.quote"
-                                        class="text-xs text-gray-500"
-                                    >
-                                        Teklif: {{ shipment.quote.number }}
-                                    </div>
-                                </td>
-                                <td class="px-4 py-3 text-gray-700">
-                                    {{ shipment.client?.name || '—' }}
-                                </td>
-                                <td class="px-4 py-3 text-gray-700">
-                                    {{ shipment.ship_date }}
-                                </td>
-                                <td class="px-4 py-3 text-gray-700">
-                                    {{ shipment.vehicle?.name || '—' }}
-                                </td>
-                                <td class="px-4 py-3">
-                                    <span
-                                        class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700"
-                                    >
-                                        {{ shipment.status_label }}
-                                    </span>
-                                </td>
-                                <td class="px-4 py-3 text-right">
-                                    <button
-                                        type="button"
-                                        class="text-indigo-600 hover:text-indigo-800"
-                                        @click="openEdit(shipment.id)"
-                                    >
-                                        Aç
-                                    </button>
-                                </td>
-                            </tr>
-                            <tr v-if="shipments.data.length === 0">
-                                <td colspan="6" class="px-4 py-8 text-center text-gray-500">
-                                    Müşteri siparişi bulunamadı.
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-
-                    <div
-                        v-if="shipments.links?.length > 3"
-                        class="flex flex-wrap gap-2 border-t border-gray-100 px-4 py-3"
-                    >
-                        <Link
-                            v-for="link in shipments.links"
-                            :key="link.label"
-                            :href="link.url || '#'"
-                            class="rounded border px-3 py-1 text-xs"
-                            :class="
-                                link.active
-                                    ? 'border-gray-800 bg-gray-800 text-white'
-                                    : 'border-gray-200 text-gray-700'
-                            "
-                            v-html="link.label"
-                            preserve-scroll
-                        />
-                    </div>
+                <div
+                    v-if="shipments.links?.length > 3"
+                    class="flex flex-wrap gap-2"
+                >
+                    <Link
+                        v-for="link in shipments.links"
+                        :key="link.label"
+                        :href="link.url || '#'"
+                        class="rounded border px-3 py-1 text-xs"
+                        :class="
+                            link.active
+                                ? 'border-gray-800 bg-gray-800 text-white'
+                                : 'border-gray-200 text-gray-700'
+                        "
+                        v-html="link.label"
+                        preserve-scroll
+                    />
                 </div>
             </div>
         </div>

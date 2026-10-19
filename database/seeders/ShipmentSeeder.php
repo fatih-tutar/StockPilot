@@ -24,18 +24,17 @@ class ShipmentSeeder extends Seeder
         }
 
         $shipment = Shipment::query()->updateOrCreate(
-            ['number' => 'S-'.now()->year.'-0001'],
             [
                 'client_id' => $client->id,
+                'notes' => 'Demo sevkiyat',
+            ],
+            [
                 'quote_id' => $quote?->id,
                 'user_id' => $admin->id,
-                'status' => ShipmentStatus::Scheduled,
+                'status' => ShipmentStatus::Received,
                 'ship_date' => now()->addDay()->toDateString(),
                 'delivery_date' => now()->addDays(2)->toDateString(),
-                'vehicle_plate' => '34 SP 01',
-                'driver_name' => 'Ali Yılmaz',
                 'shipping_address' => $client->address,
-                'notes' => 'Demo sevkiyat',
             ],
         );
 
@@ -44,7 +43,6 @@ class ShipmentSeeder extends Seeder
         foreach ($products as $index => $product) {
             $shipment->items()->create([
                 'product_id' => $product->id,
-                'description' => $product->name,
                 'quantity_piece' => ($index + 1) * 5,
                 'quantity_pallet' => $index + 1,
                 'sort_order' => $index,
@@ -53,27 +51,26 @@ class ShipmentSeeder extends Seeder
 
         $harbor = Client::query()->where('name', 'Harbor Fabrication')->first();
         if ($harbor && $products->isNotEmpty()) {
-            $inTransit = Shipment::query()->updateOrCreate(
-                ['number' => 'S-'.now()->year.'-0002'],
+            $preparing = Shipment::query()->updateOrCreate(
                 [
                     'client_id' => $harbor->id,
+                    'notes' => 'Demo hazırlanan sipariş',
+                ],
+                [
                     'quote_id' => null,
                     'user_id' => $admin->id,
-                    'status' => ShipmentStatus::InTransit,
+                    'prepared_by' => $admin->id,
+                    'status' => ShipmentStatus::Preparing,
                     'ship_date' => now()->subDay()->toDateString(),
                     'delivery_date' => now()->addDay()->toDateString(),
-                    'vehicle_plate' => '35 SP 02',
-                    'driver_name' => 'Mehmet Demir',
                     'shipping_address' => $harbor->address,
-                    'notes' => null,
                 ],
             );
 
-            $inTransit->items()->delete();
+            $preparing->items()->delete();
             $product = $products->first();
-            $inTransit->items()->create([
+            $preparing->items()->create([
                 'product_id' => $product->id,
-                'description' => $product->name,
                 'quantity_piece' => 20,
                 'quantity_pallet' => 2,
                 'sort_order' => 0,

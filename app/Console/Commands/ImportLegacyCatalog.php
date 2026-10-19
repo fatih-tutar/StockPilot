@@ -2268,7 +2268,6 @@ class ImportLegacyCatalog extends Command
         $companyIds = DB::table('companies')->pluck('id')->flip();
         $vehicleIds = DB::table('vehicles')->pluck('id')->flip();
         $existingIds = DB::table('shipments')->pluck('id')->flip();
-        $existingNumbers = DB::table('shipments')->pluck('number')->flip();
         $shipTypes = [
             '0' => ShipmentType::CustomerCaglayan->value,
             '1' => ShipmentType::CustomerAlkop->value,
@@ -2297,13 +2296,10 @@ class ImportLegacyCatalog extends Command
                 continue;
             }
 
-            $number = 'SV-'.$id;
-            if (isset($existingNumbers[$number])) {
-                continue;
-            }
-
             $creatorId = (int) ($row['olusturan'] ?? 0);
             $ownerId = isset($userIds[$creatorId]) ? $creatorId : (int) $userId;
+            $preparerId = (int) ($row['hazirlayan'] ?? 0);
+            $invoicerId = (int) ($row['faturaci'] ?? 0);
             $deleted = ($row['silik'] ?? '0') === '1';
             $recordedAt = $this->unixTimestamp($row['saniye'] ?? null) ?? $now;
             $companyId = (int) ($row['sirket_id'] ?? 0);
@@ -2312,12 +2308,13 @@ class ImportLegacyCatalog extends Command
             $notes = array_values(array_filter([
                 $this->blankToNull($row['aciklama'] ?? null),
                 ($row['manuel'] ?? '0') === '1' ? 'Manuel kayıt' : null,
-                ($row['durum'] ?? '') === '1' ? 'Hazırlanıyor' : null,
                 $this->blankToNull($row['kilolar'] ?? null) !== null ? 'Kilo: '.trim((string) $row['kilolar']) : null,
             ]));
             $status = match ($row['durum'] ?? '0') {
-                '2', '3' => ShipmentStatus::Delivered->value,
-                default => ShipmentStatus::Scheduled->value,
+                '1' => ShipmentStatus::Preparing->value,
+                '2' => ShipmentStatus::Invoiced->value,
+                '3' => ShipmentStatus::Archived->value,
+                default => ShipmentStatus::Received->value,
             };
             $productIds = $this->legacyList($row['urunler'] ?? null);
             $quantities = $this->legacyList($row['adetler'] ?? null);
@@ -2343,12 +2340,13 @@ class ImportLegacyCatalog extends Command
             $shipmentBatch[] = [
                 'id' => $id,
                 'company_id' => isset($companyIds[$companyId]) ? $companyId : null,
-                'number' => $number,
                 'client_id' => $clientId,
                 'vehicle_id' => $vehicleId,
                 'quote_id' => null,
                 'user_id' => $ownerId,
-                'status' => $deleted ? ShipmentStatus::Cancelled->value : $status,
+                'prepared_by' => isset($userIds[$preparerId]) ? $preparerId : null,
+                'invoiced_by' => isset($userIds[$invoicerId]) ? $invoicerId : null,
+                'status' => $deleted ? ShipmentStatus::Archived->value : $status,
                 'ship_date' => $recordedAt->toDateString(),
                 'delivery_date' => null,
                 'vehicle_plate' => null,
@@ -2362,7 +2360,6 @@ class ImportLegacyCatalog extends Command
             ];
             array_push($itemBatch, ...$itemRows);
             $existingIds[$id] = true;
-            $existingNumbers[$number] = true;
             $shipments++;
             $items += count($itemRows);
 

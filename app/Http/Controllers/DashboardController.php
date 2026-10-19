@@ -46,8 +46,8 @@ class DashboardController extends Controller
                 : null,
             'active_shipments_count' => $canViewShipments
                 ? Shipment::query()->whereIn('status', [
-                    ShipmentStatus::Scheduled,
-                    ShipmentStatus::InTransit,
+                    ShipmentStatus::Received,
+                    ShipmentStatus::Preparing,
                 ])->count()
                 : null,
         ];
@@ -92,13 +92,12 @@ class DashboardController extends Controller
             'activeShipments' => $canViewShipments
                 ? Shipment::query()
                     ->with(['client:id,name', 'vehicle:id,name,license_plate'])
-                    ->whereIn('status', [ShipmentStatus::Scheduled, ShipmentStatus::InTransit])
+                    ->whereIn('status', [ShipmentStatus::Received, ShipmentStatus::Preparing])
                     ->orderBy('ship_date')
                     ->limit(8)
                     ->get()
                     ->map(fn (Shipment $shipment) => [
                         'id' => $shipment->id,
-                        'number' => $shipment->number,
                         'status' => $shipment->status->value,
                         'status_label' => $shipment->status->label(),
                         'ship_date' => $shipment->ship_date?->toDateString(),

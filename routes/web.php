@@ -149,8 +149,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('shipments/create-data', [ShipmentController::class, 'createData'])
         ->name('shipments.create-data');
+    Route::get('shipments/archive', [ShipmentController::class, 'archive'])
+        ->name('shipments.archive');
     Route::get('shipments/{shipment}/editor', [ShipmentController::class, 'editor'])
         ->name('shipments.editor');
+    Route::get('shipments/{shipment}/print', [ShipmentController::class, 'print'])
+        ->name('shipments.print');
+    Route::patch('shipments/{shipment}/status', [ShipmentController::class, 'updateStatus'])
+        ->name('shipments.status');
     Route::resource('shipments', ShipmentController::class)->except(['show']);
 });
 

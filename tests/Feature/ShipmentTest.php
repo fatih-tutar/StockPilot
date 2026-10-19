@@ -18,6 +18,13 @@ class ShipmentTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->withoutVite();
+    }
+
     private function userWithShipmentsPermission(): User
     {
         foreach (['shipments.view', 'shipments.manage'] as $permission) {
@@ -39,15 +46,21 @@ class ShipmentTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_shipments_index_is_displayed(): void
+    public function test_shipments_index_lists_received_orders_as_cards(): void
     {
         $user = $this->userWithShipmentsPermission();
-        $client = Client::factory()->create();
+        $client = Client::factory()->create(['name' => 'Nova Build']);
 
         Shipment::factory()->create([
             'client_id' => $client->id,
             'user_id' => $user->id,
-            'number' => 'S-2026-0099',
+            'status' => ShipmentStatus::Received,
+        ]);
+
+        Shipment::factory()->create([
+            'client_id' => $client->id,
+            'user_id' => $user->id,
+            'status' => ShipmentStatus::Preparing,
         ]);
 
         $this->actingAs($user)
@@ -55,8 +68,10 @@ class ShipmentTest extends TestCase
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('Shipments/Index')
+                ->where('filters.tab', 'received')
                 ->has('shipments.data', 1)
-                ->where('shipments.data.0.number', 'S-2026-0099'));
+                ->where('shipments.data.0.client.name', 'Nova Build')
+                ->missing('shipments.data.0.number'));
     }
 
     public function test_shipment_can_be_created_with_items(): void
@@ -89,18 +104,83 @@ class ShipmentTest extends TestCase
         $shipment = Shipment::query()->first();
 
         $this->assertNotNull($shipment);
-        $response->assertRedirect(route('shipments.index'));
-        $this->assertSame(ShipmentStatus::Scheduled, $shipment->status);
+        $response->assertRedirect(route('shipments.index', ['tab' => 'received']));
+        $this->assertSame(ShipmentStatus::Received, $shipment->status);
+        $this->assertFalse(isset($shipment->getAttributes()['number']));
         $this->assertSame('Tarafımızca sevk', $shipment->ship_type->value);
         $this->assertSame($vehicle->id, $shipment->vehicle_id);
-        $this->assertNull($shipment->vehicle_plate);
-        $this->assertNull($shipment->driver_name);
         $this->assertSame('Kapı önü', $shipment->notes);
         $this->assertCount(1, $shipment->items);
         $this->assertSame(12, $shipment->items->first()->quantity_piece);
         $this->assertSame($product->id, $shipment->items->first()->product_id);
         $this->assertSame('25.50', $shipment->items->first()->unit_price);
         $response->assertSessionHas('success', 'Müşteri siparişi oluşturuldu.');
+    }
+
+    public function test_received_order_can_move_through_preparing_invoiced_and_archive(): void
+    {
+        $user = $this->userWithShipmentsPermission();
+        $shipment = Shipment::factory()->create([
+            'user_id' => $user->id,
+            'status' => ShipmentStatus::Received,
+        ]);
+
+        $this->actingAs($user)
+            ->patch(route('shipments.status', $shipment), ['status' => 'preparing'])
+            ->assertRedirect();
+
+        $shipment->refresh();
+        $this->assertSame(ShipmentStatus::Preparing, $shipment->status);
+        $this->assertSame($user->id, $shipment->prepared_by);
+
+        $this->actingAs($user)
+            ->patch(route('shipments.status', $shipment), ['status' => 'invoiced'])
+            ->assertRedirect();
+
+        $shipment->refresh();
+        $this->assertSame(ShipmentStatus::Invoiced, $shipment->status);
+        $this->assertSame($user->id, $shipment->invoiced_by);
+
+        $this->actingAs($user)
+            ->patch(route('shipments.status', $shipment), ['status' => 'archived'])
+            ->assertRedirect(route('shipments.index', ['tab' => 'invoiced']));
+
+        $this->assertSame(ShipmentStatus::Archived, $shipment->refresh()->status);
+
+        $this->actingAs($user)
+            ->get(route('shipments.archive'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Shipments/Archive')
+                ->has('shipments.data', 1));
+    }
+
+    public function test_status_transition_rejects_invalid_jumps(): void
+    {
+        $user = $this->userWithShipmentsPermission();
+        $shipment = Shipment::factory()->create([
+            'user_id' => $user->id,
+            'status' => ShipmentStatus::Received,
+        ]);
+
+        $this->actingAs($user)
+            ->from(route('shipments.index'))
+            ->patch(route('shipments.status', $shipment), ['status' => 'archived'])
+            ->assertRedirect(route('shipments.index'))
+            ->assertSessionHasErrors('status');
+    }
+
+    public function test_print_page_is_available(): void
+    {
+        $user = $this->userWithShipmentsPermission();
+        $shipment = Shipment::factory()->create(['user_id' => $user->id]);
+
+        $this->actingAs($user)
+            ->get(route('shipments.print', $shipment))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Shipments/Print')
+                ->where('shipment.id', $shipment->id));
     }
 
     public function test_create_form_data_requires_manage_permission(): void
@@ -133,15 +213,14 @@ class ShipmentTest extends TestCase
         $user->givePermissionTo('shipments.view');
         $shipment = Shipment::factory()->create([
             'user_id' => $user->id,
-            'number' => 'S-2026-0100',
         ]);
 
         $this->actingAs($user)
             ->getJson(route('shipments.editor', $shipment))
             ->assertOk()
-            ->assertJsonPath('shipment.number', 'S-2026-0100')
             ->assertJsonStructure(['shipment', 'vehicles', 'shipTypeOptions'])
-            ->assertJsonPath('shipment.client_name', $shipment->client->name);
+            ->assertJsonPath('shipment.client_name', $shipment->client->name)
+            ->assertJsonMissingPath('shipment.number');
     }
 
     public function test_shipment_editor_requires_view_permission(): void
@@ -154,7 +233,7 @@ class ShipmentTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_legacy_import_keeps_shipment_lines_vehicle_and_archive_status(): void
+    public function test_legacy_import_keeps_shipment_lines_vehicle_and_workflow_status(): void
     {
         $company = Company::factory()->create();
         $user = User::factory()->create();
@@ -191,11 +270,10 @@ class ShipmentTest extends TestCase
 
         $open = Shipment::query()->with('items')->find(30);
         $this->assertNotNull($open);
-        $this->assertSame('SV-30', $open->number);
         $this->assertSame($client->id, $open->client_id);
         $this->assertSame($user->id, $open->user_id);
         $this->assertSame($company->id, $open->company_id);
-        $this->assertSame(ShipmentStatus::Scheduled, $open->status);
+        $this->assertSame(ShipmentStatus::Received, $open->status);
         $this->assertSame($vehicle->id, $open->vehicle_id);
         $this->assertSame('Tarafımızca sevk', $open->ship_type?->value);
         $this->assertSame('2021-01-01', $open->ship_date->toDateString());
@@ -211,13 +289,13 @@ class ShipmentTest extends TestCase
 
         $removed = Shipment::withTrashed()->find(31);
         $this->assertNotNull($removed);
-        $this->assertSame(ShipmentStatus::Cancelled, $removed->status);
+        $this->assertSame(ShipmentStatus::Archived, $removed->status);
         $this->assertSoftDeleted($removed);
         $this->assertNull(Shipment::withTrashed()->find(32));
 
         $archived = Shipment::query()->find(33);
         $this->assertNotNull($archived);
-        $this->assertSame(ShipmentStatus::Delivered, $archived->status);
+        $this->assertSame(ShipmentStatus::Archived, $archived->status);
         $this->assertSame($user->id, $archived->user_id);
         $this->assertSame('Kargo Teslim', $archived->ship_type?->value);
         $this->assertSame(3, Shipment::withTrashed()->count());

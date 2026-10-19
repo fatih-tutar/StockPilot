@@ -219,7 +219,7 @@ const submit = () => {
 };
 
 const destroyShipment = () => {
-    if (!confirm(`"${props.shipment.number}" müşteri siparişi silinsin mi?`)) {
+    if (!confirm('Bu müşteri siparişi silinsin mi?')) {
         return;
     }
     deleteForm.delete(route('shipments.destroy', props.shipment.id), {
@@ -239,7 +239,7 @@ onUnmounted(() => {
 
 <template>
     <div>
-        <Head v-if="!modal" :title="isEdit ? shipment.number : 'Yeni müşteri siparişi'" />
+        <Head v-if="!modal" :title="isEdit ? 'Müşteri siparişi düzenle' : 'Yeni müşteri siparişi'" />
 
         <component
             :is="modal ? 'div' : AuthenticatedLayout"
@@ -248,7 +248,7 @@ onUnmounted(() => {
             <template v-if="!modal" #header>
                 <div class="flex items-center justify-between gap-4">
                     <h2 class="text-xl font-semibold leading-tight text-gray-800">
-                        {{ isEdit ? shipment.number : 'Yeni müşteri siparişi' }}
+                        {{ isEdit ? 'Müşteri siparişi düzenle' : 'Yeni müşteri siparişi' }}
                     </h2>
                     <Link
                         :href="route('shipments.index')"
@@ -264,7 +264,7 @@ onUnmounted(() => {
                     <template v-if="modal">
                         <p class="text-sm font-medium text-gray-500">Müşteri siparişi</p>
                         <h2 class="mt-1 text-lg font-semibold text-gray-900">
-                            {{ isEdit ? shipment.number : 'Yeni müşteri siparişi' }}
+                            {{ isEdit ? 'Siparişi düzenle' : 'Yeni müşteri siparişi' }}
                         </h2>
                     </template>
                     <div

@@ -63,8 +63,7 @@ class DashboardTest extends TestCase
         Shipment::factory()->create([
             'client_id' => $client->id,
             'user_id' => $user->id,
-            'status' => ShipmentStatus::InTransit,
-            'number' => 'S-2026-0100',
+            'status' => ShipmentStatus::Preparing,
         ]);
 
         $this->actingAs($user)

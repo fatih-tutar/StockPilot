@@ -56,7 +56,7 @@ class ProductShipmentTest extends TestCase
 
         $shipment = Shipment::query()->where('client_id', $client->id)->first();
         $this->assertNotNull($shipment);
-        $this->assertSame(ShipmentStatus::Scheduled, $shipment->status);
+        $this->assertSame(ShipmentStatus::Received, $shipment->status);
         $this->assertSame(ShipmentType::OwnDelivery, $shipment->ship_type);
         $this->assertSame($vehicle->id, $shipment->vehicle_id);
         $this->assertNull($shipment->vehicle_plate);

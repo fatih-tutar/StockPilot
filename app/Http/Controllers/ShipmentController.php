@@ -6,12 +6,15 @@ use App\Enums\ShipmentStatus;
 use App\Enums\ShipmentType;
 use App\Http\Requests\Shipments\StoreShipmentRequest;
 use App\Http\Requests\Shipments\UpdateShipmentRequest;
+use App\Http\Requests\Shipments\UpdateShipmentStatusRequest;
+use App\Models\Company;
 use App\Models\Shipment;
 use App\Models\ShipmentItem;
 use App\Models\Vehicle;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -22,60 +25,56 @@ class ShipmentController extends Controller
     {
         $this->authorize('viewAny', Shipment::class);
 
+        $tab = $this->resolveTab($request->string('tab')->toString());
         $search = $request->string('search')->trim()->toString();
-        $status = $request->string('status')->trim()->toString();
-
-        $shipments = Shipment::query()
-            ->with(['client:id,name', 'vehicle:id,name,license_plate', 'quote:id,number'])
-            ->when($search !== '', function ($query) use ($search) {
-                $query->where(function ($inner) use ($search) {
-                    $inner->where('number', 'like', "%{$search}%")
-                        ->orWhereHas('client', function ($clientQuery) use ($search) {
-                            $clientQuery->where('name', 'like', "%{$search}%");
-                        })
-                        ->orWhereHas('vehicle', function ($vehicleQuery) use ($search) {
-                            $vehicleQuery->where('name', 'like', "%{$search}%")
-                                ->orWhere('license_plate', 'like', "%{$search}%");
-                        });
-                });
-            })
-            ->when($status !== '', function ($query) use ($status) {
-                $query->where('status', $status);
-            })
-            ->latest('ship_date')
-            ->latest('id')
-            ->paginate(15)
-            ->withQueryString()
-            ->through(fn (Shipment $shipment) => [
-                'id' => $shipment->id,
-                'number' => $shipment->number,
-                'status' => $shipment->status->value,
-                'status_label' => $shipment->status->label(),
-                'ship_date' => $shipment->ship_date?->toDateString(),
-                'delivery_date' => $shipment->delivery_date?->toDateString(),
-                'vehicle' => $shipment->vehicle ? [
-                    'id' => $shipment->vehicle->id,
-                    'name' => $shipment->vehicle->name,
-                    'license_plate' => $shipment->vehicle->license_plate,
-                ] : null,
-                'client' => [
-                    'id' => $shipment->client?->id,
-                    'name' => $shipment->client?->name,
-                ],
-                'quote' => $shipment->quote ? [
-                    'id' => $shipment->quote->id,
-                    'number' => $shipment->quote->number,
-                ] : null,
-            ]);
 
         return Inertia::render('Shipments/Index', [
-            'shipments' => $shipments,
+            'shipments' => $this->shipmentPage($tab, $search),
+            'filters' => [
+                'tab' => $tab->value,
+                'search' => $search,
+            ],
+            'tabs' => ShipmentStatus::tabOptions(),
+            'canManage' => $request->user()->can('shipments.manage'),
+        ]);
+    }
+
+    public function archive(Request $request): Response
+    {
+        $this->authorize('viewAny', Shipment::class);
+
+        $search = $request->string('search')->trim()->toString();
+
+        return Inertia::render('Shipments/Archive', [
+            'shipments' => $this->shipmentPage(ShipmentStatus::Archived, $search),
             'filters' => [
                 'search' => $search,
-                'status' => $status,
             ],
-            'statusOptions' => ShipmentStatus::options(),
             'canManage' => $request->user()->can('shipments.manage'),
+        ]);
+    }
+
+    public function print(Request $request, Shipment $shipment): Response
+    {
+        $this->authorize('view', $shipment);
+
+        $shipment->load([
+            'client:id,name,phone,email,address',
+            'vehicle:id,name',
+            'user:id,name',
+            'preparedByUser:id,name',
+            'invoicedByUser:id,name',
+            'items.product:id,name,shelf,category_id',
+            'items.product.category:id,name,parent_id',
+            'items.product.category.parent:id,name',
+            'company:id,name,letterhead,logo',
+        ]);
+
+        $company = $shipment->company
+            ?? Company::query()->find($request->user()->company_id);
+
+        return Inertia::render('Shipments/Print', [
+            'shipment' => $this->printPayload($shipment, $company),
         ]);
     }
 
@@ -103,11 +102,10 @@ class ShipmentController extends Controller
 
         DB::transaction(function () use ($request, $data): void {
             $shipment = Shipment::query()->create([
-                'number' => Shipment::nextNumber(),
                 'client_id' => $data['client_id'],
                 'vehicle_id' => $data['vehicle_id'] ?? null,
                 'user_id' => $request->user()->id,
-                'status' => ShipmentStatus::Scheduled,
+                'status' => ShipmentStatus::Received,
                 'ship_date' => now()->toDateString(),
                 'ship_type' => $data['ship_type'],
                 'notes' => $data['notes'] ?? null,
@@ -116,7 +114,9 @@ class ShipmentController extends Controller
             $this->syncItems($shipment, $data['items']);
         });
 
-        return back()->with('success', 'Müşteri siparişi oluşturuldu.');
+        return redirect()
+            ->route('shipments.index', ['tab' => ShipmentStatus::Received->value])
+            ->with('success', 'Müşteri siparişi oluşturuldu.');
     }
 
     public function edit(Request $request, Shipment $shipment): Response
@@ -151,15 +151,171 @@ class ShipmentController extends Controller
         return back()->with('success', 'Müşteri siparişi güncellendi.');
     }
 
+    public function updateStatus(UpdateShipmentStatusRequest $request, Shipment $shipment): RedirectResponse
+    {
+        $previous = $shipment->status;
+        $target = ShipmentStatus::from($request->validated('status'));
+        $updates = ['status' => $target];
+
+        if ($previous === ShipmentStatus::Received && $target === ShipmentStatus::Preparing) {
+            $updates['prepared_by'] = $request->user()->id;
+        }
+
+        if ($previous === ShipmentStatus::Preparing && $target === ShipmentStatus::Invoiced) {
+            $updates['invoiced_by'] = $request->user()->id;
+        }
+
+        $shipment->update($updates);
+
+        $message = match (true) {
+            $previous === ShipmentStatus::Received && $target === ShipmentStatus::Preparing => 'Sipariş hazırlananlara taşındı.',
+            $previous === ShipmentStatus::Preparing && $target === ShipmentStatus::Received => 'Sipariş alınanlara geri alındı.',
+            $previous === ShipmentStatus::Preparing && $target === ShipmentStatus::Invoiced => 'Sipariş faturası kesilenlere taşındı.',
+            $previous === ShipmentStatus::Invoiced && $target === ShipmentStatus::Preparing => 'Sipariş hazırlananlara geri alındı.',
+            $previous === ShipmentStatus::Invoiced && $target === ShipmentStatus::Archived => 'Sipariş arşive gönderildi.',
+            $previous === ShipmentStatus::Archived && $target === ShipmentStatus::Invoiced => 'Sipariş arşivden çıkarıldı.',
+            default => 'Sipariş durumu güncellendi.',
+        };
+
+        if ($target === ShipmentStatus::Archived) {
+            return redirect()
+                ->route('shipments.index', ['tab' => ShipmentStatus::Invoiced->value])
+                ->with('success', $message);
+        }
+
+        return back()->with('success', $message);
+    }
+
     public function destroy(Shipment $shipment): RedirectResponse
     {
         $this->authorize('delete', $shipment);
 
+        $tab = $shipment->status === ShipmentStatus::Archived
+            ? null
+            : $shipment->status->value;
+
         $shipment->delete();
 
+        if ($tab === null) {
+            return redirect()
+                ->route('shipments.archive')
+                ->with('success', 'Müşteri siparişi silindi.');
+        }
+
         return redirect()
-            ->route('shipments.index')
+            ->route('shipments.index', ['tab' => $tab])
             ->with('success', 'Müşteri siparişi silindi.');
+    }
+
+    private function resolveTab(string $tab): ShipmentStatus
+    {
+        $status = ShipmentStatus::tryFrom($tab);
+
+        return in_array($status, ShipmentStatus::tabs(), true)
+            ? $status
+            : ShipmentStatus::Received;
+    }
+
+    /**
+     * @return LengthAwarePaginator<int, array<string, mixed>>
+     */
+    private function shipmentPage(ShipmentStatus $status, string $search)
+    {
+        return Shipment::query()
+            ->with([
+                'client:id,name',
+                'vehicle:id,name',
+                'user:id,name',
+                'items.product:id,name,category_id',
+                'items.product.category:id,name,parent_id',
+                'items.product.category.parent:id,name',
+            ])
+            ->where('status', $status)
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($inner) use ($search) {
+                    $inner->whereHas('client', function ($clientQuery) use ($search) {
+                        $clientQuery->where('name', 'like', "%{$search}%");
+                    })->orWhereHas('vehicle', function ($vehicleQuery) use ($search) {
+                        $vehicleQuery->where('name', 'like', "%{$search}%")
+                            ->orWhere('license_plate', 'like', "%{$search}%");
+                    })->orWhereHas('items.product', function ($productQuery) use ($search) {
+                        $productQuery->where('name', 'like', "%{$search}%");
+                    });
+                });
+            })
+            ->latest('ship_date')
+            ->latest('id')
+            ->paginate(24)
+            ->withQueryString()
+            ->through(fn (Shipment $shipment) => $this->cardPayload($shipment));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function cardPayload(Shipment $shipment): array
+    {
+        return [
+            'id' => $shipment->id,
+            'status' => $shipment->status->value,
+            'ship_date' => $shipment->ship_date?->format('d.m.Y'),
+            'ship_type' => $shipment->ship_type?->label(),
+            'notes' => $shipment->notes,
+            'creator_name' => $shipment->user?->name,
+            'vehicle' => $shipment->vehicle?->name,
+            'client' => [
+                'id' => $shipment->client?->id,
+                'name' => $shipment->client?->name,
+            ],
+            'items' => $shipment->items->map(fn (ShipmentItem $item) => [
+                'id' => $item->id,
+                'product_name' => $item->product?->name,
+                'kind' => $item->product?->category?->parent?->name
+                    ?? $item->product?->category?->name,
+                'quantity_piece' => $item->quantity_piece,
+                'unit_price' => $item->unit_price,
+            ])->values(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function printPayload(Shipment $shipment, ?Company $company): array
+    {
+        return [
+            'id' => $shipment->id,
+            'ship_date' => $shipment->ship_date?->format('d.m.Y'),
+            'created_time' => $shipment->created_at?->format('H:i'),
+            'ship_type' => $shipment->ship_type?->label(),
+            'notes' => $shipment->notes,
+            'creator_name' => $shipment->user?->name,
+            'preparer_name' => $shipment->preparedByUser?->name,
+            'invoicer_name' => $shipment->invoicedByUser?->name,
+            'client' => [
+                'name' => $shipment->client?->name,
+                'address' => $shipment->client?->address,
+                'phone' => $shipment->client?->phone,
+                'email' => $shipment->client?->email,
+            ],
+            'company' => [
+                'name' => $company?->name,
+                'letterhead' => $company?->letterhead,
+                'logo' => $company?->logo,
+            ],
+            'items' => $shipment->items->map(function (ShipmentItem $item) {
+                $category = $item->product?->category;
+
+                return [
+                    'product_name' => $item->product?->name,
+                    'kind' => $category?->parent?->name ?? $category?->name,
+                    'type' => $category?->parent_id ? $category->name : null,
+                    'shelf' => $item->product?->shelf,
+                    'quantity_piece' => $item->quantity_piece,
+                    'unit_price' => $item->unit_price,
+                ];
+            })->values(),
+        ];
     }
 
     /**
@@ -205,7 +361,6 @@ class ShipmentController extends Controller
         return [
             'shipment' => [
                 'id' => $shipment->id,
-                'number' => $shipment->number,
                 'client_id' => $shipment->client_id,
                 'client_name' => $shipment->client?->name,
                 'ship_type' => $shipment->ship_type?->value,

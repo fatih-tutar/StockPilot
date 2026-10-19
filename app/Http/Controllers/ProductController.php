@@ -391,17 +391,16 @@ class ProductController extends Controller
         DB::transaction(function () use ($request, $product, $client, $data): void {
             $shipment = Shipment::query()
                 ->where('client_id', $client->id)
-                ->where('status', ShipmentStatus::Scheduled)
+                ->where('status', ShipmentStatus::Received)
                 ->latest('id')
                 ->first();
 
             if ($shipment === null) {
                 $shipment = Shipment::query()->create([
-                    'number' => Shipment::nextNumber(),
                     'client_id' => $client->id,
                     'vehicle_id' => $data['vehicle_id'] ?? null,
                     'user_id' => $request->user()->id,
-                    'status' => ShipmentStatus::Scheduled,
+                    'status' => ShipmentStatus::Received,
                     'ship_date' => now()->toDateString(),
                     'ship_type' => $data['ship_type'],
                     'notes' => $data['notes'] ?? null,

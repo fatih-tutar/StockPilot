@@ -230,14 +230,13 @@ const movementTypeLabel = (type) => {
                             >
                                 <div>
                                     <Link
-                                        :href="route('shipments.edit', shipment.id)"
+                                        :href="route('shipments.index', { tab: shipment.status })"
                                         class="font-medium text-gray-900 hover:text-indigo-700"
                                     >
-                                        {{ shipment.number }}
+                                        {{ shipment.client_name || 'Müşteri siparişi' }}
                                     </Link>
                                     <p class="text-xs text-gray-500">
-                                        {{ shipment.client_name || '—' }}
-                                        · {{ shipment.status_label }}
+                                        {{ shipment.status_label }}
                                         · {{ shipment.ship_date }}
                                     </p>
                                 </div>
