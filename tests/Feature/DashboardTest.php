@@ -83,6 +83,7 @@ class DashboardTest extends TestCase
                 ->where('stats.active_shipments_count', 2)
                 ->has('lowStockProducts', 1)
                 ->has('openQuotes', 1)
+                ->where('panelPageSize', 4)
                 ->has('shipmentTabs', 3)
                 ->where('shipmentTabs.0.status', 'received')
                 ->where('shipmentTabs.1.status', 'preparing')
@@ -92,5 +93,25 @@ class DashboardTest extends TestCase
                 ->has('shipmentTabs.2.shipments', 0)
                 ->where('shipmentTabs.0.shipments.0.client.name', $client->name)
                 ->where('can.shipments_manage', false));
+    }
+
+    public function test_dashboard_loads_enough_shipments_for_show_more(): void
+    {
+        $user = $this->userWithOpsPermissions();
+        $client = Client::factory()->create(['is_active' => true]);
+
+        Shipment::factory()->count(6)->create([
+            'client_id' => $client->id,
+            'user_id' => $user->id,
+            'status' => ShipmentStatus::Received,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Dashboard')
+                ->has('shipmentTabs.0.shipments', 6)
+                ->where('panelPageSize', 4));
     }
 }

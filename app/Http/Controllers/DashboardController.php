@@ -18,6 +18,8 @@ use Inertia\Response;
 
 class DashboardController extends Controller
 {
+    private const int PanelLimit = 24;
+
     public function __invoke(Request $request): Response
     {
         $user = $request->user();
@@ -51,10 +53,11 @@ class DashboardController extends Controller
 
         return Inertia::render('Dashboard', [
             'stats' => $stats,
+            'panelPageSize' => 4,
             'lowStockProducts' => $canViewStock
                 ? $this->lowStockQuery()
                     ->orderBy('quantity_piece')
-                    ->limit(4)
+                    ->limit(self::PanelLimit)
                     ->get(['id', 'name', 'sku', 'quantity_piece', 'quantity_pallet', 'low_stock_threshold'])
                     ->map(fn (Product $product) => [
                         'id' => $product->id,
@@ -72,7 +75,7 @@ class DashboardController extends Controller
                     ->whereIn('status', [QuoteStatus::Draft, QuoteStatus::Sent])
                     ->latest('quote_date')
                     ->latest('id')
-                    ->limit(4)
+                    ->limit(self::PanelLimit)
                     ->get()
                     ->map(fn (Quote $quote) => [
                         'id' => $quote->id,
@@ -96,7 +99,7 @@ class DashboardController extends Controller
                             ->where('status', $status)
                             ->latest('ship_date')
                             ->latest('id')
-                            ->limit(4)
+                            ->limit(self::PanelLimit)
                             ->get()
                             ->map(fn (Shipment $shipment) => $shipment->toBoardCard())
                             ->values()
@@ -109,7 +112,7 @@ class DashboardController extends Controller
                 ? StockMovement::query()
                     ->with(['product:id,name', 'user:id,name'])
                     ->latest('id')
-                    ->limit(4)
+                    ->limit(self::PanelLimit)
                     ->get()
                     ->map(fn (StockMovement $movement) => [
                         'id' => $movement->id,
@@ -132,7 +135,7 @@ class DashboardController extends Controller
                     })
                     ->orderBy('due_on')
                     ->orderBy('id')
-                    ->limit(4)
+                    ->limit(self::PanelLimit)
                     ->get()
                     ->map(fn (WorkTask $task) => [
                         'id' => $task->id,

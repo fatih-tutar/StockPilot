@@ -6,7 +6,7 @@ import ShipmentOrderCard from '@/Components/ShipmentOrderCard.vue';
 import ShipmentForm from '@/Pages/Shipments/Form.vue';
 import { useShipmentOrders } from '@/composables/useShipmentOrders';
 import { Head, Link, usePage } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
+import { computed, reactive, watch } from 'vue';
 
 const props = defineProps({
     stats: { type: Object, required: true },
@@ -15,16 +15,65 @@ const props = defineProps({
     shipmentTabs: { type: Array, default: () => [] },
     recentMovements: { type: Array, default: () => [] },
     upcomingWorkTasks: { type: Array, default: () => [] },
+    panelPageSize: { type: Number, default: 4 },
     can: { type: Object, required: true },
 });
 
 const page = usePage();
 const user = computed(() => page.props.auth.user);
 const columns = computed(() => page.props.auth?.user?.columns ?? {});
-const activeShipmentTab = ref(props.shipmentTabs[0]?.status || 'received');
-const activeShipmentColumn = computed(
-    () => props.shipmentTabs.find((tab) => tab.status === activeShipmentTab.value) || props.shipmentTabs[0],
+
+const columnTone = {
+    received: 'bg-sky-600 text-white',
+    preparing: 'bg-amber-500 text-white',
+    invoiced: 'bg-emerald-600 text-white',
+};
+
+const pageSize = computed(() => Math.max(1, Number(props.panelPageSize) || 4));
+
+const visibleCounts = reactive({
+    lowStock: pageSize.value,
+    quotes: pageSize.value,
+    tasks: pageSize.value,
+    movements: pageSize.value,
+    shipments: {},
+});
+
+const syncShipmentCounts = () => {
+    for (const tab of props.shipmentTabs) {
+        if (visibleCounts.shipments[tab.status] === undefined) {
+            visibleCounts.shipments[tab.status] = pageSize.value;
+        }
+    }
+};
+
+syncShipmentCounts();
+
+watch(
+    () => props.shipmentTabs.map((tab) => tab.status).join(','),
+    () => syncShipmentCounts(),
 );
+
+watch(pageSize, (size) => {
+    visibleCounts.lowStock = Math.max(visibleCounts.lowStock, size);
+    visibleCounts.quotes = Math.max(visibleCounts.quotes, size);
+    visibleCounts.tasks = Math.max(visibleCounts.tasks, size);
+    visibleCounts.movements = Math.max(visibleCounts.movements, size);
+    for (const status of Object.keys(visibleCounts.shipments)) {
+        visibleCounts.shipments[status] = Math.max(visibleCounts.shipments[status], size);
+    }
+});
+
+const shownShipments = (tab) => (tab.shipments || []).slice(0, visibleCounts.shipments[tab.status] || pageSize.value);
+const canShowMoreShipments = (tab) => (visibleCounts.shipments[tab.status] || 0) < (tab.shipments?.length || 0);
+const showMoreShipments = (status) => {
+    visibleCounts.shipments[status] = (visibleCounts.shipments[status] || pageSize.value) + pageSize.value;
+};
+
+const shownLowStock = computed(() => props.lowStockProducts.slice(0, visibleCounts.lowStock));
+const shownQuotes = computed(() => props.openQuotes.slice(0, visibleCounts.quotes));
+const shownTasks = computed(() => props.upcomingWorkTasks.slice(0, visibleCounts.tasks));
+const shownMovements = computed(() => props.recentMovements.slice(0, visibleCounts.movements));
 
 const {
     createOpen,
@@ -72,7 +121,7 @@ const movementTypeLabel = (type) => {
         </template>
 
         <div class="py-8">
-            <div class="mx-auto max-w-7xl space-y-6 sm:px-6 lg:px-8">
+            <div class="mx-auto max-w-[90rem] space-y-6 sm:px-6 lg:px-8">
                 <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     <div
                         v-if="can.stock"
@@ -158,40 +207,45 @@ const movementTypeLabel = (type) => {
                                 </Link>
                             </div>
                         </div>
-                        <div class="border-b border-gray-100 px-2">
-                            <nav class="-mb-px flex gap-1 overflow-x-auto" aria-label="Sipariş sekmeleri">
-                                <button
-                                    v-for="tab in shipmentTabs"
-                                    :key="tab.status"
-                                    type="button"
-                                    class="whitespace-nowrap border-b-2 px-3 py-2 text-xs font-medium transition sm:text-sm"
-                                    :class="
-                                        activeShipmentTab === tab.status
-                                            ? 'border-indigo-600 text-indigo-600'
-                                            : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                                    "
-                                    @click="activeShipmentTab = tab.status"
+
+                        <div class="grid gap-3 p-3 lg:grid-cols-3">
+                            <div
+                                v-for="tab in shipmentTabs"
+                                :key="tab.status"
+                                class="min-w-0 rounded-lg bg-gray-50 shadow-sm"
+                            >
+                                <header
+                                    class="rounded-t-lg px-3 py-2.5 text-center text-sm font-semibold"
+                                    :class="columnTone[tab.status] || 'bg-gray-700 text-white'"
                                 >
                                     {{ tab.label }}
-                                    <span class="ms-1 text-gray-400">({{ tab.shipments.length }})</span>
-                                </button>
-                            </nav>
-                        </div>
-                        <div class="max-h-56 overflow-y-auto p-3">
-                            <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                                <ShipmentOrderCard
-                                    v-for="shipment in activeShipmentColumn?.shipments || []"
-                                    :key="shipment.id"
-                                    compact
-                                    :shipment="shipment"
-                                    :can-manage="can.shipments_manage"
-                                    @action="(key) => runAction(shipment, key)"
-                                />
-                                <div
-                                    v-if="!(activeShipmentColumn?.shipments?.length)"
-                                    class="col-span-full rounded-md border border-dashed border-gray-300 px-4 py-6 text-center text-sm text-gray-500"
-                                >
-                                    Bu sekmede sipariş yok.
+                                    <span class="ms-1 opacity-80">({{ tab.shipments.length }})</span>
+                                </header>
+
+                                <div class="space-y-2 p-2.5">
+                                    <ShipmentOrderCard
+                                        v-for="shipment in shownShipments(tab)"
+                                        :key="shipment.id"
+                                        :shipment="shipment"
+                                        :can-manage="can.shipments_manage"
+                                        @action="(key) => runAction(shipment, key)"
+                                    />
+
+                                    <div
+                                        v-if="tab.shipments.length === 0"
+                                        class="rounded-md border border-dashed border-gray-300 bg-white px-3 py-6 text-center text-sm text-gray-500"
+                                    >
+                                        Sipariş yok.
+                                    </div>
+
+                                    <button
+                                        v-if="canShowMoreShipments(tab)"
+                                        type="button"
+                                        class="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-indigo-600 transition hover:bg-indigo-50"
+                                        @click="showMoreShipments(tab.status)"
+                                    >
+                                        Devamını göster
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -210,9 +264,9 @@ const movementTypeLabel = (type) => {
                                 Tümü
                             </Link>
                         </div>
-                        <ul class="max-h-48 divide-y divide-gray-100 overflow-y-auto text-sm">
+                        <ul class="divide-y divide-gray-100 text-sm">
                             <li
-                                v-for="product in lowStockProducts"
+                                v-for="product in shownLowStock"
                                 :key="product.id"
                                 class="flex items-center justify-between gap-3 px-4 py-2"
                             >
@@ -244,6 +298,18 @@ const movementTypeLabel = (type) => {
                                 Düşük stoklu ürün yok.
                             </li>
                         </ul>
+                        <div
+                            v-if="visibleCounts.lowStock < lowStockProducts.length"
+                            class="border-t border-gray-100 p-2"
+                        >
+                            <button
+                                type="button"
+                                class="w-full rounded-md px-3 py-2 text-sm font-medium text-indigo-600 transition hover:bg-indigo-50"
+                                @click="visibleCounts.lowStock += pageSize"
+                            >
+                                Devamını göster
+                            </button>
+                        </div>
                     </section>
 
                     <section
@@ -259,9 +325,9 @@ const movementTypeLabel = (type) => {
                                 Tümü
                             </Link>
                         </div>
-                        <ul class="max-h-48 divide-y divide-gray-100 overflow-y-auto text-sm">
+                        <ul class="divide-y divide-gray-100 text-sm">
                             <li
-                                v-for="quote in openQuotes"
+                                v-for="quote in shownQuotes"
                                 :key="quote.id"
                                 class="flex items-center justify-between gap-3 px-4 py-2"
                             >
@@ -289,6 +355,18 @@ const movementTypeLabel = (type) => {
                                 Açık teklif yok.
                             </li>
                         </ul>
+                        <div
+                            v-if="visibleCounts.quotes < openQuotes.length"
+                            class="border-t border-gray-100 p-2"
+                        >
+                            <button
+                                type="button"
+                                class="w-full rounded-md px-3 py-2 text-sm font-medium text-indigo-600 transition hover:bg-indigo-50"
+                                @click="visibleCounts.quotes += pageSize"
+                            >
+                                Devamını göster
+                            </button>
+                        </div>
                     </section>
 
                     <section
@@ -304,9 +382,9 @@ const movementTypeLabel = (type) => {
                                 Tümü
                             </Link>
                         </div>
-                        <ul class="max-h-48 divide-y divide-gray-100 overflow-y-auto text-sm">
+                        <ul class="divide-y divide-gray-100 text-sm">
                             <li
-                                v-for="task in upcomingWorkTasks"
+                                v-for="task in shownTasks"
                                 :key="task.id"
                                 class="flex items-center justify-between gap-3 px-4 py-2"
                             >
@@ -330,6 +408,18 @@ const movementTypeLabel = (type) => {
                                 Önümüzdeki 30 günde açık iş yok.
                             </li>
                         </ul>
+                        <div
+                            v-if="visibleCounts.tasks < upcomingWorkTasks.length"
+                            class="border-t border-gray-100 p-2"
+                        >
+                            <button
+                                type="button"
+                                class="w-full rounded-md px-3 py-2 text-sm font-medium text-indigo-600 transition hover:bg-indigo-50"
+                                @click="visibleCounts.tasks += pageSize"
+                            >
+                                Devamını göster
+                            </button>
+                        </div>
                     </section>
 
                     <section
@@ -345,9 +435,9 @@ const movementTypeLabel = (type) => {
                                 Ürünler
                             </Link>
                         </div>
-                        <ul class="max-h-48 divide-y divide-gray-100 overflow-y-auto text-sm">
+                        <ul class="divide-y divide-gray-100 text-sm">
                             <li
-                                v-for="movement in recentMovements"
+                                v-for="movement in shownMovements"
                                 :key="movement.id"
                                 class="px-4 py-2"
                             >
@@ -375,6 +465,18 @@ const movementTypeLabel = (type) => {
                                 Henüz stok hareketi yok.
                             </li>
                         </ul>
+                        <div
+                            v-if="visibleCounts.movements < recentMovements.length"
+                            class="border-t border-gray-100 p-2"
+                        >
+                            <button
+                                type="button"
+                                class="w-full rounded-md px-3 py-2 text-sm font-medium text-indigo-600 transition hover:bg-indigo-50"
+                                @click="visibleCounts.movements += pageSize"
+                            >
+                                Devamını göster
+                            </button>
+                        </div>
                     </section>
                 </div>
             </div>
